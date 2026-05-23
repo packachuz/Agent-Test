@@ -4,6 +4,13 @@ export type TaskStatus = 'pending' | 'running' | 'done' | 'blocked' | 'escalated
 export type AgentKey = 'cto' | 'arc' | 'dev' | 'qa' | 'dvo' | 'sec';
 export type ChangeClass = 'copy_edit' | 'dead_code' | 'bugfix' | 'patch_bump' | 'perf_tweak' | 'feature' | 'infra' | 'migration' | 'security';
 
+export interface TargetRepo {
+  type: 'greenfield' | 'existing';
+  org: string;
+  name: string;
+  url?: string;               // populated for 'existing'; set by DevOps repo-setup for 'greenfield'
+}
+
 export interface Requirement {
   id: string;
   source: IntakeSource;
@@ -18,6 +25,8 @@ export interface Requirement {
   };
   received_at: string;        // ISO-8601
   raw?: unknown;
+  target_repo?: TargetRepo;
+  workspace_path?: string;    // set after DevOps repo-setup completes; injected into all agent tasks
 }
 
 export interface Task {

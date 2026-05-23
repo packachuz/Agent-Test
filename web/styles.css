@@ -38,6 +38,34 @@
   --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
+[data-theme="light"] {
+  /* Backgrounds */
+  --bg-base: oklch(0.97 0.004 70);
+  --bg-elevated: oklch(0.94 0.004 70);
+  --bg-card: oklch(0.91 0.005 70);
+  --bg-sunken: oklch(0.985 0.003 70);
+  --bg-hover: oklch(0.88 0.006 70);
+
+  /* Borders */
+  --border-subtle: oklch(0.82 0.006 70);
+  --border: oklch(0.74 0.007 70);
+  --border-strong: oklch(0.60 0.010 70);
+
+  /* Text */
+  --fg: oklch(0.14 0.005 70);
+  --fg-muted: oklch(0.38 0.008 70);
+  --fg-subtle: oklch(0.48 0.008 70);
+  --fg-faint: oklch(0.46 0.008 70);
+
+  /* Accent soft override for light backgrounds */
+  --accent-soft: oklch(0.70 0.14 240 / 0.10);
+}
+
+[data-theme="light"] .btn.primary:hover {
+  background: oklch(0.22 0.005 70);
+  color: oklch(0.97 0.004 70);
+}
+
 .app {
   font-family: var(--font-sans);
   background: var(--bg-base);
@@ -224,6 +252,8 @@
 .btn.ghost:hover { background: var(--bg-elevated); color: var(--fg); }
 .btn.sm { padding: 3px 7px; font-size: 11.5px; }
 .btn .ico { width: 12px; height: 12px; }
+.hdr-theme-btn { padding: 4px; width: 26px; height: 26px; display: grid; place-items: center; }
+.hdr-theme-btn .ico { width: 14px; height: 14px; }
 
 /* ---------- STATUS PILLS ---------- */
 .pill {

@@ -128,6 +128,38 @@ function RunDetailPage({ onNav }) {
               <span style={{color:'var(--fg-faint)'}}>Risk</span><span><Pill kind="blocked">medium</Pill></span>
               <span style={{color:'var(--fg-faint)'}}>Status</span><span><Pill kind="running">in progress · phase 3/4</Pill></span>
               <span style={{color:'var(--fg-faint)'}}>Cost</span><span className="mono" style={{color:'var(--fg-muted)'}}>$0.41 · 184k tokens</span>
+              <span style={{color:'var(--fg-faint)'}}>Target</span>
+              <span style={{display:'flex', alignItems:'center', gap:8, flexWrap:'wrap'}}>
+                {(() => {
+                  const repoUrl = null; // set to "https://github.com/org/repo"
+                  const prUrl   = null; // set to "https://github.com/org/repo/pull/N"
+                  const branch  = null; // set to "feat/run_xxx-slug"
+                  if (!repoUrl) return <span style={{color:'var(--fg-muted)'}}>—</span>;
+                  const safeRepo = repoUrl.startsWith('https://github.com/') ? repoUrl : null;
+                  const safePr   = prUrl && prUrl.startsWith('https://github.com/') ? prUrl : null;
+                  const label    = safeRepo ? safeRepo.replace('https://github.com/', '') : repoUrl;
+                  return (
+                    <>
+                      {safeRepo
+                        ? <a href={safeRepo} target="_blank" rel="noopener noreferrer"
+                             style={{color:'var(--accent)', display:'inline-flex', alignItems:'center', gap:4}}>
+                            <span className="ico" style={{width:13,height:13}}>{Ico.github}</span>
+                            <span className="mono" style={{fontSize:11}}>{label}</span>
+                          </a>
+                        : <span className="mono" style={{fontSize:11, color:'var(--fg-muted)'}}>{label}</span>
+                      }
+                      {branch && <span className="mono" style={{fontSize:11, color:'var(--fg-muted)'}}>· {branch}</span>}
+                      {safePr &&
+                        <a href={safePr} target="_blank" rel="noopener noreferrer"
+                           style={{color:'var(--status-done)', display:'inline-flex', alignItems:'center', gap:4}}>
+                          <span className="ico" style={{width:12,height:12}}>{Ico.pr}</span>
+                          <span className="mono" style={{fontSize:11}}>PR</span>
+                        </a>
+                      }
+                    </>
+                  );
+                })()}
+              </span>
             </div>
           </div>
         </div>

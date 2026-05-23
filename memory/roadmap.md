@@ -34,6 +34,9 @@ Changes to these paths require explicit human approval before the CTO may procee
 ## [CTO-maintained] Active initiatives
 
 - **login-page** — run_a1b2c3d4 complete. Code approved. 5 pre-production security conditions outstanding (see decisions.md ADR-001) — must be resolved before canary deploy.
+- **dark-light-toggle** — run_a7f3bc91 complete. Self-merged. WCAG AA verified. No pre-production conditions.
+- **backbone-external-repo** — run_b3e7f291 complete. 11 files updated. Security reviewed (10 remediations applied). Human review recommended before dogfooding. See decisions.md ADR-003.
+- **rag-integration** — run_e4b9f732 complete. 13 files created/edited. NotebookLM per-agent RAG layer. Security reviewed (10 remediations). Human review recommended. Pre-use: approve corpus files, run rag_setup.py. See decisions.md ADR-005.
 
 ## [CTO-maintained] Recurring failures
 

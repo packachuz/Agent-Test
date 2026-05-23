@@ -128,30 +128,47 @@ function ActiveRunCard({ state = "normal", onNav }) {
 
 function RecentRunsTable({ onNav }) {
   const rows = [
-    { id: "run_9c40", title: "Migrate stripe webhook handler to v2",        status: "done",      dur: "11m 02s", outcome: "approved · merged #4128" },
-    { id: "run_9c3f", title: "Investigate p99 spike on /search after 3am",  status: "escalated", dur: "23m 41s", outcome: "human review · index lock" },
-    { id: "run_9c3e", title: "Add OTel spans to billing-worker",             status: "done",      dur: "08m 17s", outcome: "approved · merged #4127" },
-    { id: "run_9c3d", title: "Patch CVE-2025-3148 in image pipeline",        status: "done",      dur: "14m 50s", outcome: "approved · deployed prod" },
-    { id: "run_9c3c", title: "Add per-tenant rate limits to gateway",        status: "blocked",   dur: "06m 11s", outcome: "Architect: requirement unclear" },
-    { id: "run_9c3b", title: "Rotate Cloudflare origin certificates",        status: "done",      dur: "04m 38s", outcome: "approved · auto-deployed" },
+    { id: "run_a1b2c3d4", title: "Add user login page (OIDC auth-code flow)", status: "done", dur: "10m 30s", outcome: "approved · self-merged", target: null, prUrl: null },
+    { id: "run_b3e7f291", title: "Add external repo provisioning support", status: "done", dur: "8m 12s", outcome: "approved · pr opened", target: "org/repo", prUrl: "https://github.com/org/repo/pull/1" },
   ];
+
+  // R7: validate PR URL starts with https://github.com/ before rendering as link
+  function SafePrLink({ url }) {
+    if (!url) return null;
+    if (!url.startsWith('https://github.com/')) {
+      return <span style={{color:'var(--fg-muted)', fontFamily:'var(--font-mono)', fontSize:11}}>{url}</span>;
+    }
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        onClick={e => e.stopPropagation()}
+        style={{color:'var(--accent)', display:'inline-flex', alignItems:'center', gap:4, fontSize:11.5}}
+      >
+        <span className="ico" style={{width:13, height:13}}>{Ico.pr}</span>PR
+      </a>
+    );
+  }
+
   return (
     <div className="card">
       <div className="card-hdr">
         <span className="card-hdr-title">Recent runs</span>
-        <span className="card-hdr-sub">last 24h</span>
+        <span className="card-hdr-sub">all time</span>
         <div className="grow"/>
-        <Btn kind="ghost sm">Filter</Btn>
         <Btn kind="ghost sm" onClick={() => onNav?.('runs')}>All runs →</Btn>
       </div>
       <table className="tbl">
         <thead>
           <tr>
-            <th style={{width:90}}>Run</th>
+            <th style={{width:110}}>Run</th>
             <th>Requirement</th>
             <th style={{width:110}}>Status</th>
             <th style={{width:90}}>Duration</th>
             <th>Outcome</th>
+            <th style={{width:90}}>Target</th>
+            <th style={{width:50}}>PR</th>
           </tr>
         </thead>
         <tbody>
@@ -162,6 +179,8 @@ function RecentRunsTable({ onNav }) {
               <td><Pill kind={r.status}>{r.status}</Pill></td>
               <td className="mono">{r.dur}</td>
               <td style={{color:'var(--fg-muted)'}}>{r.outcome}</td>
+              <td className="mono" style={{fontSize:11, color:'var(--fg-muted)'}}>{r.target || '—'}</td>
+              <td><SafePrLink url={r.prUrl}/></td>
             </tr>
           ))}
         </tbody>
@@ -171,20 +190,21 @@ function RecentRunsTable({ onNav }) {
 }
 
 function AgentHealthRow({ onNav }) {
+  // run_a1b2c3d4: arc, sec, dev, qa participated; dvo was not dispatched
   const data = [
-    { k: "cto", last: "2s ago",  rate: "98.2%", state: "running" },
-    { k: "arc", last: "5m ago",  rate: "94.1%", state: "done" },
-    { k: "dev", last: "12s ago", rate: "91.7%", state: "running" },
-    { k: "qa",  last: "8m ago",  rate: "88.4%", state: "pending" },
-    { k: "dvo", last: "1m ago",  rate: "96.0%", state: "running" },
-    { k: "sec", last: "1m ago",  rate: "82.5%", state: "blocked" },
+    { k: "cto", last: "2026-05-23", runs: 1, state: "done" },
+    { k: "arc", last: "2026-05-23", runs: 1, state: "done" },
+    { k: "dev", last: "2026-05-23", runs: 1, state: "done" },
+    { k: "qa",  last: "2026-05-23", runs: 1, state: "done" },
+    { k: "dvo", last: "—",         runs: 0, state: "pending" },
+    { k: "sec", last: "2026-05-23", runs: 1, state: "done" },
   ];
-  const dotColor = { running: "var(--status-running)", done: "var(--status-done)", blocked: "var(--status-blocked)", pending: "var(--status-pending)" };
+  const dotColor = { done: "var(--status-done)", pending: "var(--status-pending)" };
   return (
     <div className="card">
       <div className="card-hdr">
         <span className="card-hdr-title">Agent health</span>
-        <span className="card-hdr-sub">last 7d · success rate</span>
+        <span className="card-hdr-sub">all time · runs dispatched</span>
         <div className="grow"/>
         <Btn kind="ghost sm" onClick={() => onNav?.('agents')}>Inspect →</Btn>
       </div>
@@ -201,10 +221,7 @@ function AgentHealthRow({ onNav }) {
                 </div>
                 <div className="last">last active · {d.last}</div>
                 <div className="rate">
-                  <span className="n">{d.rate}</span>
-                  <span className="spark up">
-                    {[8,11,7,12,9,14,10,13,11,15].map((h,i) => <span key={i} style={{height:h}}/>)}
-                  </span>
+                  <span className="n">{d.runs} run{d.runs !== 1 ? 's' : ''}</span>
                 </div>
               </div>
             );
@@ -216,23 +233,15 @@ function AgentHealthRow({ onNav }) {
 }
 
 function DashboardPage({ onNav }) {
-  const [runState, setRunState] = React.useState("normal");
   return (
     <AppShell
       active="dashboard" onNav={onNav}
       title="Dashboard"
       sub="Overview of orchestrator activity"
-      actions={<>
-        <div className="seg" style={{fontSize:11.5, padding:'2px 3px'}}>
-          {["normal","empty","loading","error"].map(s => (
-            <button key={s} className={runState === s ? "on" : ""} onClick={() => setRunState(s)} style={{fontSize:11, padding:'3px 8px'}}>{s}</button>
-          ))}
-        </div>
-        <Btn onClick={() => onNav?.('requirements')}>{Ico.plus} New requirement</Btn>
-      </>}
+      actions={<Btn onClick={() => onNav?.('requirements')}>{Ico.plus} New requirement</Btn>}
     >
       <div className="main-body">
-        <ActiveRunCard state={runState} onNav={onNav}/>
+        <ActiveRunCard state="empty" onNav={onNav}/>
         <RecentRunsTable onNav={onNav}/>
         <AgentHealthRow onNav={onNav}/>
       </div>
