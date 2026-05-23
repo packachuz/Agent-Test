@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npx tsx *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git checkout -b *)",
+      "Read(memory/**)",
+      "Read(runs/**)",
+      "Read(state/**)",
+      "Read(agent/**)",
+      "Write(memory/decisions.md)",
+      "Write(memory/lessons.md)",
+      "Write(memory/skills.md)",
+      "Write(memory/roadmap.md)",
+      "Write(state/current.json)",
+      "Write(runs/**)",
+      "Bash(git -C /workspaces/Agent-Test diff web/js/app.jsx)",
+      "Bash(git -C /workspaces/Agent-Test diff HEAD web/js/app.jsx)",
+      "Bash(git -C /workspaces/Agent-Test status)",
+      "Bash(git -C /workspaces/Agent-Test diff --cached web/js/app.jsx)",
+      "Bash(lsof -ti:8080)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8080/)"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Bash(git push --force *)",
+      "Write(memory/domain.md)",
+      "Write(.claude/**)",
+      "Write(.github/**)"
+    ]
+  }
+}

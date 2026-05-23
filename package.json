@@ -1,0 +1,21 @@
+{
+  "name": "agent-it-team",
+  "version": "1.0.0",
+  "description": "Autonomous multi-agent IT team with CTO orchestrator",
+  "type": "module",
+  "scripts": {
+    "iterate": "tsx agent/cto/index.ts",
+    "cli": "tsx agent/cto/index.ts --intake=cli",
+    "retro": "tsx agent/cto/retrospect/overnight.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.55.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "@types/node": "^22.15.21"
+  }
+}

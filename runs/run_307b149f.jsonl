@@ -1,0 +1,3 @@
+{"run_id":"run_307b149f","timestamp":"2026-05-23T11:42:08.657Z","agent":"system","action":"bootstrap","retry":false,"retry_count":0,"output":{"run_id":"run_307b149f","dryRun":true,"intakeMode":"cli"}}
+{"run_id":"run_307b149f","timestamp":"2026-05-23T11:42:08.658Z","agent":"cto","action":"requirement.received","retry":false,"retry_count":0,"input":{"id":"req_fixture_small-bugfix","title":"Fix typo in error message for invalid email"}}
+{"run_id":"run_307b149f","timestamp":"2026-05-23T11:42:08.659Z","agent":"cto","action":"triage.start","retry":false,"retry_count":0,"input":{"title":"Fix typo in error message for invalid email","priority":"low"}}

@@ -1,0 +1,86 @@
+name: Agent IT Team — Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      title:
+        description: "Requirement title"
+        required: true
+      description:
+        description: "Requirement description"
+        required: true
+      priority:
+        description: "Priority (low / medium / high)"
+        required: false
+        default: "medium"
+      touches:
+        description: "Comma-separated services/paths (optional)"
+        required: false
+  issues:
+    types: [labeled]   # Trigger when an issue gets the "agent-team" label
+
+concurrency:
+  group: agent-team-run
+  cancel-in-progress: false   # Never cancel a mid-run — let it finish
+
+jobs:
+  run:
+    name: CTO Pipeline
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build requirement JSON (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          cat > /tmp/requirement.json <<EOF
+          {
+            "title": "${{ github.event.inputs.title }}",
+            "description": "${{ github.event.inputs.description }}",
+            "priority": "${{ github.event.inputs.priority }}",
+            "touches": "${{ github.event.inputs.touches }}"
+          }
+          EOF
+
+      - name: Build requirement JSON (issue labeled)
+        if: github.event_name == 'issues' && github.event.label.name == 'agent-team'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh issue view ${{ github.event.issue.number }} --json title,body,labels > /tmp/requirement.json
+
+      - name: Run CTO pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          cat /tmp/requirement.json | npx tsx agent/cto/index.ts --intake=github
+
+      - name: Upload run log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-log-${{ github.run_id }}
+          path: runs/*.jsonl
+          retention-days: 30
+
+      - name: Commit run log back to repo
+        if: always()
+        run: |
+          git config user.name  "cto-agent[bot]"
+          git config user.email "cto-agent@users.noreply.github.com"
+          git add runs/ state/ memory/
+          git diff --cached --quiet || git commit -m "chore(runs): log run ${{ github.run_id }}"
+          git push

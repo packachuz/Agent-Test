@@ -1,0 +1,41 @@
+name: Agent IT Team — Overnight Retrospective
+
+on:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC daily — agents wake up smarter
+  workflow_dispatch:       # manual trigger for testing
+
+concurrency:
+  group: overnight-retro
+  cancel-in-progress: false
+
+jobs:
+  retrospect:
+    name: Retrospective
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run overnight retrospective
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx agent/cto/retrospect/overnight.ts
+
+      - name: Commit updated memory
+        run: |
+          git config user.name  "cto-agent[bot]"
+          git config user.email "cto-agent@users.noreply.github.com"
+          git add memory/
+          git diff --cached --quiet || git commit -m "chore(memory): overnight retrospective $(date -u +%Y-%m-%d)"
+          git push

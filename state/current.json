@@ -1,0 +1,23 @@
+{
+  "run_id": "run_307b149f",
+  "requirement": {
+    "id": "req_fixture_small-bugfix",
+    "source": "cli",
+    "description": "Error message says \"invalide email\" instead of \"invalid email\" in auth/validate.go",
+    "priority": "low",
+    "touches": [
+      "auth/validate.go"
+    ],
+    "constraints": {
+      "requireSecuritySignoff": true,
+      "requireQAPass": true,
+      "escalateOnLargeDiff": false
+    },
+    "received_at": "2026-05-23T11:42:08.658Z",
+    "title": "Fix typo in error message for invalid email"
+  },
+  "task_results": [],
+  "status": "triaging",
+  "started_at": "2026-05-23T11:42:08.658Z",
+  "updated_at": "2026-05-23T11:42:08.658Z"
+}

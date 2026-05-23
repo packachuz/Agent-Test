@@ -1,0 +1,10 @@
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T11:52:00Z","agent":"system","action":"bootstrap","output":{"intake":"cli","dry_run":false}}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T11:52:01Z","agent":"cto","action":"triage.complete","output":{"approved":true,"risk":"medium","agents":["arc","sec","dev","qa"]}}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T11:52:02Z","agent":"cto","action":"decompose.complete","output":{"groups":3,"tasks":4}}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T11:55:00Z","agent":"arc","action":"plan.done","output":{"milestones":6,"adrs":4},"retry":false,"retry_count":0}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T11:55:00Z","agent":"sec","action":"review.approved","output":{"findings":6,"blockers":0},"retry":false,"retry_count":0}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T11:58:00Z","agent":"dev","action":"implement.done","output":{"files":4,"lines_added":~120},"retry":false,"retry_count":0}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T12:00:00Z","agent":"qa","action":"verify.fail","output":{"criteria_failed":["url_cleanup"]},"retry":false,"retry_count":0}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T12:01:00Z","agent":"dev","action":"fix.done","output":{"fix":"window.history.replaceState after state validation"},"retry":true,"retry_count":1}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T12:02:00Z","agent":"qa","action":"verify.pass","output":{"criteria_passed":8},"retry":false,"retry_count":0}
+{"run_id":"run_a1b2c3d4","timestamp":"2026-05-23T12:02:30Z","agent":"cto","action":"decision","output":{"outcome":"approved","self_merge":true}}
