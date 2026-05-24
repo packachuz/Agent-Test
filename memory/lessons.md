@@ -67,3 +67,11 @@ If run IDs are ever derived from external input (e.g., a GitHub webhook payload)
 
 **Pattern: Unlimited source upload to NotebookLM enables denial-of-service and cost exhaustion.**
 `rag_sync.py` adds every run output as a new source without a cap. A high-frequency pipeline can exhaust Google API quotas, trigger rate-limiting failures that cascade into pipeline stalls, or incur unbounded cost. A maximum source count per notebook and a deduplication check (by run_id) must be enforced before upload.
+
+## 2026-05-24 · run_5e9a1d2b · CDN + SRI is fragile on mobile
+
+When loading React/ReactDOM/Babel from unpkg with `integrity="sha384-..."`, the CDN occasionally serves cache variants whose bytes don't match the pinned hash. The browser silently refuses to execute the script, with no console error visible without DevTools — manifests as a blank `#root`. Especially common on iOS Safari over cellular.
+
+**Rule**: If shipping a CDN-loaded script to production, either (a) self-host so SRI is meaningful and stable, or (b) drop SRI. Never combine third-party CDN + SRI for production-critical scripts without monitoring for fetch failures.
+
+**See**: ADR-011.

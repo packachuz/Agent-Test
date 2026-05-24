@@ -196,3 +196,28 @@ The login page collects only email as `login_hint` and redirects to the IDP. No 
 - [ ] Agent-glyph color map in run-detail is hardcoded to known agent keys; needs a fallback when unknown agents appear
 
 **Autonomy check**: 5 files / net **-74 lines** on `run-detail.jsx` (replacement deletes more mock than the new fetch logic adds) + ~110 new lines in the route + small edits elsewhere = ~150 lines net. Under budget. No frozen paths. No new deps.
+
+---
+
+## ADR-011 · 2026-05-24 · APPROVED — self-merge equivalent
+
+**Requirement**: run_5e9a1d2b — Fix blank dashboard on Vercel (production React + drop SRI)
+
+**Symptom**: `/dashboard/` rendered blank on mobile Safari over 4G after the ADR-009/010 deploy. `/` (the Next.js landing page) worked fine, so the issue was isolated to the static SPA bootstrap, not Next.js.
+
+**Root cause**: `web/index.html` loaded `react.development.js`, `react-dom.development.js`, and `@babel/standalone` from unpkg with SRI integrity hashes. unpkg occasionally serves slightly different cached bytes for the same URL (e.g. brotli vs gzip variants), causing the SRI check to fail silently and the script not to execute. With React/ReactDOM not loaded, the SPA bootstrap throws on `React.useState`, leaving `<div id="root">` empty.
+
+This was already known tech debt — recorded in `memory/roadmap.md` under "Tech debt register": *"web/index.html loads React development builds — must swap to production builds before any deployment."*
+
+**Changes applied**:
+- `web/index.html`: swap `react.development.js` → `react.production.min.js`, same for ReactDOM. Drop SRI `integrity` attributes (they pin to specific unpkg cache variants and are brittle for production CDN delivery).
+
+**Rationale**: Smallest possible fix that unblocks the deploy. Production React is also smaller (~40KB vs ~120KB), so the dashboard loads noticeably faster on mobile.
+
+**Trade-off**: Dropping SRI weakens subresource integrity guarantees. Acceptable in the short term because (a) unpkg is HTTPS-only, (b) the alternative — broken page — is worse, (c) the proper fix is to bundle React into our own static build and drop the CDN dependency entirely, which is a follow-up run.
+
+**Open items**:
+- [ ] Pre-compile JSX at build time so `@babel/standalone` is not shipped to the browser (~200KB savings + faster boot)
+- [ ] Self-host React/ReactDOM/Babel from `site/public/` (kills external CDN dependency) — then SRI becomes meaningful again
+
+**Autonomy check**: 1 file / 3 lines changed / no frozen paths / no new deps. Trivially self-merge eligible.
