@@ -221,3 +221,26 @@ This was already known tech debt — recorded in `memory/roadmap.md` under "Tech
 - [ ] Self-host React/ReactDOM/Babel from `site/public/` (kills external CDN dependency) — then SRI becomes meaningful again
 
 **Autonomy check**: 1 file / 3 lines changed / no frozen paths / no new deps. Trivially self-merge eligible.
+
+---
+
+## ADR-012 · 2026-05-24 · APPROVED — self-merge equivalent
+
+**Requirement**: run_8c2e5d1f — Pre-compile JSX so Vercel can serve the dashboard scripts
+
+**Symptom (root cause)**: Vercel returned HTTP 404 (with HTML body) for `/dashboard/js/shared.jsx` and every other `.jsx` URL, while `.css` and `.html` from the same directory worked. Cause: Next.js static serving from `public/` does not expose `.jsx` files (treats them as source artifacts).
+
+**Diagnostic that found it**: the controlled JSX loader added in run_3a8c5f7d.v2 printed `[fetch 404] js/shared.jsx (text/html)` on the live page — confirmed by user screenshot. iOS Safari's `Script error.` mask had hidden the same failure under the original `<script type="text/babel">` loader.
+
+**Changes applied**:
+- `site/scripts/build-jsx.mjs`: new — walks `../web/js`, transforms every `.jsx` with `@babel/preset-react` (classic runtime), writes `.js` into `site/public/dashboard/js/`.
+- `site/package.json`: prebuild now copies only `index.html` + `styles.css` verbatim and runs the compiler; adds `@babel/core` and `@babel/preset-react` as devDependencies.
+- `web/index.html`: dropped `@babel/standalone` CDN script and the diagnostic controlled loader; loads pre-compiled `.js` files via standard `<script src>` tags.
+
+**Rationale**: Pre-compilation was already an open item from ADR-011. Doing it now (a) fixes the live blank-screen blocker, (b) removes ~600KB of `@babel/standalone` from the page load, (c) avoids iOS Safari's `Script error.` masking by using normal script tags.
+
+**Open items**:
+- [ ] Self-host React/ReactDOM from `site/public/` to drop the unpkg CDN dependency entirely; then re-add SRI with stable hashes.
+- [ ] Memory / Agents pages still mock — wire to `/api/memory` and `/api/agents` (ADR-010 open items).
+
+**Autonomy check**: 3 files / +50 lines new compiler script + small edits / no frozen paths / 2 new dev-only deps (`@babel/core`, `@babel/preset-react`) — these are Vercel build-time only, not shipped to the browser, so acceptable under the "no new runtime deps" reading of the gate.

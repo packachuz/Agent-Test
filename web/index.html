@@ -10,135 +10,27 @@
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
   <link rel="stylesheet" href="styles.css"/>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; background: #0b0d10; color: #e6e8eb;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-base); }
     * { box-sizing: border-box; }
     #root { height: 100vh; }
     .app { height: 100vh; }
-    #boot { padding: 24px; font-size: 14px; line-height: 1.5; }
-    #boot .step { color: #8a93a0; margin: 4px 0; font-family: ui-monospace, monospace; font-size: 12px; }
-    #boot .err  { color: #ff6b7b; white-space: pre-wrap; word-break: break-word; }
-    #boot .ok   { color: #7aa2f7; }
   </style>
 </head>
 <body>
-  <div id="root">
-    <div id="boot">
-      <div><strong>Loading dashboard…</strong></div>
-      <div class="step" id="boot-html">html · loaded</div>
-      <div class="step" id="boot-react">react · waiting</div>
-      <div class="step" id="boot-dom">react-dom · waiting</div>
-      <div class="step" id="boot-babel">babel · waiting</div>
-      <div class="step" id="boot-app">app · waiting</div>
-      <div class="step err" id="boot-err"></div>
-    </div>
-  </div>
-  <script>
-    (function () {
-      var errEl = document.getElementById('boot-err');
-      window.addEventListener('error', function (e) {
-        if (!errEl) return;
-        errEl.textContent += '[error] ' + (e.message || e.type) +
-          (e.filename ? ' @ ' + e.filename.split('/').slice(-2).join('/') : '') +
-          (e.lineno ? ':' + e.lineno : '') + '\n';
-      }, true);
-      window.addEventListener('unhandledrejection', function (e) {
-        if (!errEl) return;
-        errEl.textContent += '[reject] ' + (e.reason && e.reason.message ? e.reason.message : String(e.reason)) + '\n';
-      });
-      function watch(id, check) {
-        var t0 = Date.now();
-        var iv = setInterval(function () {
-          if (check()) {
-            clearInterval(iv);
-            var el = document.getElementById(id);
-            if (el) { el.textContent = el.textContent.replace(/waiting$/, 'ok'); el.className = 'step ok'; }
-          } else if (Date.now() - t0 > 8000) {
-            clearInterval(iv);
-            var el = document.getElementById(id);
-            if (el) { el.textContent = el.textContent.replace(/waiting$/, 'TIMEOUT (8s)'); el.className = 'step err'; }
-          }
-        }, 100);
-      }
-      watch('boot-react', function () { return typeof React !== 'undefined'; });
-      watch('boot-dom',   function () { return typeof ReactDOM !== 'undefined'; });
-      watch('boot-babel', function () { return typeof Babel !== 'undefined'; });
-      watch('boot-app',   function () { return typeof window.DashboardPage === 'function'; });
-    })();
-  </script>
+  <div id="root"></div>
 
   <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
-  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
 
-  <script>
-    // Controlled JSX loader: fetch each file, surface HTTP/Content-Type,
-    // transform with Babel, eval in catchable context. The default
-    // <script type="text/babel"> path masks errors as "Script error." in
-    // iOS Safari — this replaces it with the real message + stack.
-    (function () {
-      var files = [
-        "js/shared.jsx",
-        "js/pages/dashboard.jsx",
-        "js/pages/submit.jsx",
-        "js/pages/run-detail.jsx",
-        "js/pages/memory.jsx",
-        "js/pages/agents.jsx",
-        "js/pages/login.jsx",
-        "js/app.jsx",
-      ];
-      var errEl = document.getElementById('boot-err');
-      function log(msg, cls) {
-        if (!errEl) return;
-        var line = document.createElement('div');
-        line.textContent = msg;
-        if (cls) line.className = cls;
-        errEl.parentNode.insertBefore(line, errEl);
-      }
-      function waitForBabel() {
-        return new Promise(function (resolve, reject) {
-          var t0 = Date.now();
-          var iv = setInterval(function () {
-            if (typeof Babel !== 'undefined') { clearInterval(iv); resolve(); }
-            else if (Date.now() - t0 > 10000) { clearInterval(iv); reject(new Error('Babel did not load in 10s')); }
-          }, 50);
-        });
-      }
-      waitForBabel().then(function () {
-        var p = Promise.resolve();
-        files.forEach(function (file) {
-          p = p.then(function () {
-            return fetch(file, { cache: 'no-store' }).then(function (res) {
-              var ct = res.headers.get('content-type') || '(no content-type)';
-              log('[fetch ' + res.status + '] ' + file + '  (' + ct + ')', res.ok ? 'step ok' : 'step err');
-              if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + file);
-              return res.text();
-            }).then(function (src) {
-              var out;
-              try {
-                out = Babel.transform(src, { presets: ['react'], filename: file }).code;
-              } catch (e) {
-                log('[babel] ' + file + ': ' + (e.message || e), 'step err');
-                throw e;
-              }
-              try {
-                // Indirect eval to run in global scope so window.X assignments stick.
-                (0, eval)(out);
-              } catch (e) {
-                log('[eval] ' + file + ': ' + (e.message || e), 'step err');
-                if (e.stack) log(e.stack.split('\n').slice(0, 4).join('\n'), 'step err');
-                throw e;
-              }
-            });
-          });
-        });
-        return p;
-      }).then(function () {
-        log('[ok] all scripts loaded', 'step ok');
-      }).catch(function (e) {
-        log('[abort] ' + (e.message || e), 'step err');
-      });
-    })();
-  </script>
+  <!-- load order matters: shared → pages → app. Files are pre-compiled
+       from .jsx by site/scripts/build-jsx.mjs (see ADR-012). -->
+  <script src="js/shared.js"></script>
+  <script src="js/pages/dashboard.js"></script>
+  <script src="js/pages/submit.js"></script>
+  <script src="js/pages/run-detail.js"></script>
+  <script src="js/pages/memory.js"></script>
+  <script src="js/pages/agents.js"></script>
+  <script src="js/pages/login.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
