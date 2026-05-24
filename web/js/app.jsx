@@ -51,7 +51,8 @@ function App() {
       });
   }, [checked]);
 
-  const nav = (p) => setPage(p);
+  const [pageParams, setPageParams] = React.useState(null);
+  const nav = (p, params = null) => { setPageParams(params); setPage(p); };
 
   if (page === "checking") {
     // Blank screen while we resolve auth; avoids a login flash for authed users.
@@ -66,8 +67,8 @@ function App() {
     <>
       {page === "dashboard"    && <DashboardPage  onNav={nav}/>}
       {page === "requirements" && <SubmitPage     onNav={nav}/>}
-      {page === "run-detail"   && <RunDetailPage  onNav={nav}/>}
-      {page === "runs"         && <RunDetailPage  onNav={nav}/>}
+      {page === "run-detail"   && <RunDetailPage  onNav={nav} runId={pageParams?.runId}/>}
+      {page === "runs"         && <RunDetailPage  onNav={nav} runId={pageParams?.runId}/>}
       {page === "memory"       && <MemoryPage     onNav={nav}/>}
       {page === "agents"       && <AgentsPage     onNav={nav}/>}
       {page === "settings"     && <DashboardPage  onNav={nav}/>}

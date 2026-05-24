@@ -170,3 +170,29 @@ The login page collects only email as `login_hint` and redirects to the IDP. No 
 - [ ] Vercel filesystem is read-only at runtime — write-side endpoints (submit new requirement) need an external store or commit-and-push.
 
 **Autonomy check**: 6 files / ~165 lines added / no frozen paths / no new deps. 1 file over the ≤5 budget; bulk of change is in 2 files (runs route + dashboard.jsx). Acceptable per user-approved override.
+
+---
+
+## ADR-010 · 2026-05-24 · APPROVED — self-merge equivalent
+
+**Requirement**: run_f4c8b2e1 — Wire Run Detail page to `/api/runs/[id]`
+
+**Outcome**: Approved. Build green; endpoint smoke-tested (valid id → 200 with full summary+events; invalid id → 400 from regex guard).
+
+**Changes applied**:
+- `site/app/api/runs/[id]/route.ts`: new — validates `id` against `/^run_[A-Za-z0-9]+$/` (blocks path traversal), reads `data/runs/<id>.jsonl`, returns `{summary, events}`.
+- `site/next.config.ts`: extended `outputFileTracingIncludes` to cover `/api/runs/[id]`.
+- `web/js/app.jsx`: `nav` now accepts `(page, params)`; pageParams stored in state and passed as `runId` prop to `RunDetailPage`.
+- `web/js/pages/dashboard.jsx`: `onNav('run-detail', { runId: r.id })` on row click.
+- `web/js/pages/run-detail.jsx`: replaced the 180-line mocked page with a fetch-driven version. Renders real title, requirement description, decision/outcome, files-changed list, and the full event timeline read from JSONL. Removed the mocked Timeline/SLA/cost cards since they showed fake data.
+
+**Rationale**: Continuation of ADR-009. Row click → real detail page completes the dashboard's read path. Mock removal is honest: the SLA/cost cards were lying about data we don't have.
+
+**Open items (next runs)**:
+- [ ] `/api/agents` + Agents page wired up
+- [ ] `/api/memory` + Memory page (decisions/lessons/roadmap rendered)
+- [ ] `/api/runs` accepts `?limit=`
+- [ ] Replace `/api/auth/me` stub with real OIDC (ADR-001 still outstanding)
+- [ ] Agent-glyph color map in run-detail is hardcoded to known agent keys; needs a fallback when unknown agents appear
+
+**Autonomy check**: 5 files / net **-74 lines** on `run-detail.jsx` (replacement deletes more mock than the new fetch logic adds) + ~110 new lines in the route + small edits elsewhere = ~150 lines net. Under budget. No frozen paths. No new deps.

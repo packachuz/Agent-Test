@@ -198,7 +198,7 @@ function RecentRunsTable({ onNav }) {
             <tr><td colSpan={7} style={{color:'var(--fg-muted)', padding:14}}>No runs recorded yet.</td></tr>
           )}
           {!error && rows && rows.map(r => (
-            <tr key={r.id} onClick={() => onNav?.('run-detail')} style={{cursor:'pointer'}}>
+            <tr key={r.id} onClick={() => onNav?.('run-detail', { runId: r.id })} style={{cursor:'pointer'}}>
               <td className="id">{r.id}</td>
               <td>{r.title}</td>
               <td><Pill kind={r.status}>{r.status}</Pill></td>
