@@ -91,12 +91,59 @@ function LogEntry({ ts, whoKey, whoLabel, what, dur, detail }) {
   );
 }
 
+function RunsListView({ onNav }) {
+  const [rows, setRows]   = React.useState(null);
+  const [error, setError] = React.useState(null);
+  React.useEffect(() => {
+    fetch("/api/runs", { credentials: "same-origin" })
+      .then(res => res.ok ? res.json() : Promise.reject(new Error("HTTP " + res.status)))
+      .then(d => setRows(d.runs || []))
+      .catch(e => setError(String(e.message || e)));
+  }, []);
+  return (
+    <AppShell active="runs" onNav={onNav} title="Runs" sub="all recorded runs">
+      <div className="main-body">
+        <div className="card">
+          <div className="card-hdr">
+            <span className="card-hdr-title">All runs</span>
+            <span className="card-hdr-sub">{rows ? rows.length : '…'}</span>
+          </div>
+          <table className="tbl">
+            <thead>
+              <tr>
+                <th style={{width:130}}>Run</th>
+                <th>Requirement</th>
+                <th style={{width:120}}>Outcome</th>
+                <th style={{width:90}}>Files</th>
+              </tr>
+            </thead>
+            <tbody>
+              {error && <tr><td colSpan={4} style={{color:'var(--status-escalated)', padding:14}}>Failed to load: {error}</td></tr>}
+              {!error && rows === null && <tr><td colSpan={4} style={{color:'var(--fg-muted)', padding:14}}>Loading…</td></tr>}
+              {!error && rows && rows.length === 0 && <tr><td colSpan={4} style={{color:'var(--fg-muted)', padding:14}}>No runs recorded.</td></tr>}
+              {!error && rows && rows.map(r => (
+                <tr key={r.id} onClick={() => onNav?.('run-detail', { runId: r.id })} style={{cursor:'pointer'}}>
+                  <td className="id">{r.id}</td>
+                  <td>{r.title}</td>
+                  <td style={{color:'var(--fg-muted)'}}>{r.outcome || '—'}</td>
+                  <td className="mono">{r.files_changed != null ? r.files_changed : '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
 function RunDetailPage({ onNav, runId }) {
   const [data, setData]   = React.useState(null);
   const [error, setError] = React.useState(null);
 
   React.useEffect(() => {
-    if (!runId) { setError("No run id"); return; }
+    if (!runId) return;
+    setData(null); setError(null);
     fetch("/api/runs/" + encodeURIComponent(runId), { credentials: "same-origin" })
       .then(res => {
         if (!res.ok) return Promise.reject(new Error("HTTP " + res.status));
@@ -106,9 +153,11 @@ function RunDetailPage({ onNav, runId }) {
       .catch(err => setError(String(err.message || err)));
   }, [runId]);
 
+  if (!runId) return <RunsListView onNav={onNav}/>;
+
   if (error) {
     return (
-      <AppShell active="runs" onNav={onNav} title="Run not found" sub={runId || "—"}>
+      <AppShell active="runs" onNav={onNav} title="Run not found" sub={runId}>
         <div className="main-body">
           <div className="card"><div style={{padding:14, color:'var(--status-escalated)'}}>Failed to load run: {error}</div></div>
         </div>
