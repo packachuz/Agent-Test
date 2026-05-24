@@ -75,3 +75,11 @@ When loading React/ReactDOM/Babel from unpkg with `integrity="sha384-..."`, the 
 **Rule**: If shipping a CDN-loaded script to production, either (a) self-host so SRI is meaningful and stable, or (b) drop SRI. Never combine third-party CDN + SRI for production-critical scripts without monitoring for fetch failures.
 
 **See**: ADR-011.
+
+## 2026-05-24 · run_2a7f3b95 · Vercel + Next.js: only auto-indexed file in a nested public/ directory serves cleanly
+
+When `public/dashboard/index.html` is shipped along with sibling assets (`public/dashboard/styles.css`, `public/dashboard/js/*.js`), Vercel serves the auto-indexed HTML at `/dashboard/` but returns the Next.js 404 page for every other path under that directory — even for known-good extensions and even at flat paths like `/dashboard/_shared.js`. Build logs confirm the files are deployed; the routing layer just refuses them.
+
+**Rule**: For static SPAs hosted under a nested directory in `public/`, inline everything (styles + scripts) into the single `index.html` so the only fetch against the directory IS the auto-indexed file. Don't trust nested public/ paths to serve on Vercel without testing.
+
+**See**: ADR-013.

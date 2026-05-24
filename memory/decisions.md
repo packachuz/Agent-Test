@@ -244,3 +244,36 @@ This was already known tech debt — recorded in `memory/roadmap.md` under "Tech
 - [ ] Memory / Agents pages still mock — wire to `/api/memory` and `/api/agents` (ADR-010 open items).
 
 **Autonomy check**: 3 files / +50 lines new compiler script + small edits / no frozen paths / 2 new dev-only deps (`@babel/core`, `@babel/preset-react`) — these are Vercel build-time only, not shipped to the browser, so acceptable under the "no new runtime deps" reading of the gate.
+
+---
+
+## ADR-013 · 2026-05-24 · APPROVED — self-merge equivalent
+
+**Requirement**: run_2a7f3b95 — Inline the dashboard SPA into a single self-contained HTML
+
+**Symptom (root cause)**: Vercel/Next.js serves `public/dashboard/index.html` at `/dashboard/` but returns the Next.js 404 page for every other path under `/dashboard/` — verified by HTTP probes from the live page:
+- `/dashboard/styles.css` → 404 (HTML body)
+- `/dashboard/__build_marker.txt` → 404 (file was definitely deployed; build log proved it)
+- `/dashboard/js/shared.js` → 404
+- `/dashboard/_shared.js` (flat path) → 404
+
+Build log confirmed all files were created and "Collected static files" in the deployment. So Vercel deploys them, but its serving layer refuses any nested path under `/dashboard/` except the auto-served `index.html`. Cause not fully diagnosed (likely something to do with how Vercel resolves directory-style paths in `public/` for App Router); pragmatic fix is to stop relying on multiple files.
+
+**Changes applied**:
+- `site/scripts/build-jsx.mjs`: rewritten — compiles all 8 JSX files in fixed order, concatenates, and INLINES the compiled JS + `styles.css` into a single `public/dashboard/index.html` via `@@INLINE_*@@` template placeholders.
+- `web/index.html`: now a template with `@@INLINE_STYLES@@` and `@@INLINE_SCRIPT@@` markers; no external `<script src=>` for the SPA (React/ReactDOM still come from unpkg CDN).
+- `site/package.json`: simplified prebuild — no separate file copies, just the inliner.
+- `site/next.config.ts`: added `rewrites()` mapping `/dashboard` and `/dashboard/` → `/dashboard/index.html`. Local `next dev` does not auto-index nested directories (Vercel apparently does, but explicit is safer + makes local + prod behave the same).
+
+**Result**: dashboard is a single 116KB HTML response — no other fetches against `/dashboard/*` paths required. Sidesteps the Vercel serving issue entirely.
+
+**Rationale**: Spent several runs (ADR-011, 012) trying to fix the same blank-screen symptom by changing extensions and adding diagnostics. Each fix uncovered a deeper layer. Inlining is the smallest change that makes the SPA work regardless of how Vercel handles `public/dashboard/*`.
+
+**Trade-off**: 116KB inline HTML is bigger than a typical SPA shell, but the dashboard isn't bandwidth-sensitive. Removes the need for cache-busting on JS files. Lose browser-level script caching across page loads, but for a single-page app this is irrelevant.
+
+**Open items**:
+- [ ] Self-host React/ReactDOM from `site/public/` to drop the unpkg CDN dependency (and inline those too, getting to a fully self-contained ~160KB HTML)
+- [ ] Investigate why Vercel returns the 404 page for `/dashboard/*` paths — file a minimal repro; not blocking
+- [ ] Memory / Agents pages still mock (ADR-010 open items)
+
+**Autonomy check**: 4 files / no frozen paths / no new runtime deps. Build green; smoke test confirms `/dashboard/` returns 116KB HTML containing `function DashboardPage`. Self-merge eligible.

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "rm -rf public/dashboard data && mkdir -p public/dashboard/js/pages data/runs && cp ../web/index.html ../web/styles.css public/dashboard/ && node scripts/build-jsx.mjs && cp public/dashboard/js/shared.js public/dashboard/_shared.js && date -u +%Y-%m-%dT%H:%M:%SZ > public/dashboard/__build_marker.txt && ls -la public/dashboard public/dashboard/js && (cp ../runs/*.jsonl data/runs/ 2>/dev/null || true)",
+    "prebuild": "rm -rf public/dashboard data && mkdir -p public/dashboard data/runs && node scripts/build-jsx.mjs && (cp ../runs/*.jsonl data/runs/ 2>/dev/null || true)",
     "predev": "npm run prebuild",
     "dev": "next dev",
     "build": "next build",

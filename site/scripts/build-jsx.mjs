@@ -1,7 +1,12 @@
-// Pre-compile every .jsx in ../web/js into a .js sibling under
-// public/dashboard/js. The dashboard SPA then loads plain .js,
-// avoiding (a) Vercel's static-serving exclusion of .jsx, and
-// (b) the runtime cost of @babel/standalone in the browser.
+// Build the dashboard SPA into a single self-contained index.html.
+//
+// Why: Next.js on Vercel refuses to serve files from public/dashboard/
+// other than the auto-served index.html — every other path under
+// /dashboard/ returns the Next.js 404 page, even for known-good
+// extensions like .css and flat paths (verified by build_marker probe
+// in ADR-013). Rather than fight the routing layer, we inline the
+// styles + compiled JS into index.html so the dashboard is a single
+// HTML response.
 
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -9,31 +14,44 @@ import { fileURLToPath } from "node:url";
 import babel from "@babel/core";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SRC_ROOT = path.resolve(__dirname, "../../web/js");
-const OUT_ROOT = path.resolve(__dirname, "../public/dashboard/js");
+const WEB_ROOT  = path.resolve(__dirname, "../../web");
+const SRC_ROOT  = path.join(WEB_ROOT, "js");
+const OUT_HTML  = path.resolve(__dirname, "../public/dashboard/index.html");
 
-async function walk(dir) {
-  const out = [];
-  for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...(await walk(full)));
-    else if (entry.isFile() && entry.name.endsWith(".jsx")) out.push(full);
-  }
-  return out;
-}
+// Load order matters: shared defines globals consumed by pages/app.
+const ORDER = [
+  "shared.jsx",
+  "pages/dashboard.jsx",
+  "pages/submit.jsx",
+  "pages/run-detail.jsx",
+  "pages/memory.jsx",
+  "pages/agents.jsx",
+  "pages/login.jsx",
+  "app.jsx",
+];
 
-const files = await walk(SRC_ROOT);
-for (const file of files) {
-  const rel = path.relative(SRC_ROOT, file);
-  const outPath = path.join(OUT_ROOT, rel.replace(/\.jsx$/, ".js"));
-  await fs.mkdir(path.dirname(outPath), { recursive: true });
-  const src = await fs.readFile(file, "utf8");
-  const result = await babel.transformAsync(src, {
+async function compile(rel) {
+  const src = await fs.readFile(path.join(SRC_ROOT, rel), "utf8");
+  const out = await babel.transformAsync(src, {
     presets: [["@babel/preset-react", { runtime: "classic" }]],
-    filename: file,
+    filename: rel,
     babelrc: false,
     configFile: false,
   });
-  await fs.writeFile(outPath, result.code, "utf8");
+  return `/* ${rel} */\n${out.code}`;
 }
-console.log(`build-jsx: compiled ${files.length} files → ${path.relative(process.cwd(), OUT_ROOT)}`);
+
+const compiled = (await Promise.all(ORDER.map(compile))).join("\n;\n");
+const styles   = await fs.readFile(path.join(WEB_ROOT, "styles.css"), "utf8");
+const template = await fs.readFile(path.join(WEB_ROOT, "index.html"), "utf8");
+
+const html = template
+  .replace("/* @@INLINE_STYLES@@ */", styles)
+  .replace("/* @@INLINE_SCRIPT@@ */", compiled);
+
+await fs.mkdir(path.dirname(OUT_HTML), { recursive: true });
+await fs.writeFile(OUT_HTML, html, "utf8");
+console.log(
+  `build-jsx: inlined ${ORDER.length} compiled files (${(compiled.length / 1024).toFixed(1)}KB JS, ` +
+  `${(styles.length / 1024).toFixed(1)}KB CSS) → ${path.relative(process.cwd(), OUT_HTML)}`,
+);
