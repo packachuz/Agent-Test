@@ -66,28 +66,39 @@
         ['react',     'https://unpkg.com/react@18.3.1/umd/react.production.min.js'],
         ['react-dom', 'https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js'],
         ['shared',    'js/shared.js'],
-        ['dashboard', 'js/pages/dashboard.js'],
-        ['submit',    'js/pages/submit.js'],
-        ['run-detail','js/pages/run-detail.js'],
-        ['memory',    'js/pages/memory.js'],
-        ['agents',    'js/pages/agents.js'],
-        ['login',     'js/pages/login.js'],
         ['app',       'js/app.js'],
       ];
       scripts.forEach(function (s) { add(s[0], s[0]); });
+      add('probe-styles', 'PROBE /dashboard/styles.css (known good)');
+      add('probe-test',   'PROBE /dashboard/__build_marker.txt (prebuild marker)');
+      add('probe-shared', 'PROBE /dashboard/js/shared.js (target)');
+      add('probe-flat',   'PROBE /dashboard/_shared.js (flat path test)');
+
+      function probe(key, url) {
+        fetch(url, { cache: 'no-store' })
+          .then(function (res) {
+            var ct = res.headers.get('content-type') || '(none)';
+            res.text().then(function (body) {
+              var preview = body.slice(0, 60).replace(/\s+/g, ' ');
+              set(key, res.ok ? 'ok' : ('HTTP ' + res.status), ct + ' · "' + preview + '…"');
+            });
+          })
+          .catch(function (e) { set(key, 'ERR', e.message); });
+      }
+      probe('probe-styles', 'styles.css');
+      probe('probe-test',   '__build_marker.txt');
+      probe('probe-shared', 'js/shared.js');
+      probe('probe-flat',   '_shared.js');
 
       function loadOne(i) {
         if (i >= scripts.length) {
-          // Give app.jsx a tick to call ReactDOM.createRoot().render()
           setTimeout(function () {
-            if (document.querySelector('#root .app') || !document.getElementById('boot')) {
-              // SPA mounted; nothing to do.
+            if (typeof window.DashboardPage === 'function') {
+              // SPA loaded; the React render will replace #root.
             } else {
-              addErr('[stuck] all scripts loaded but SPA did not render. ' +
-                'DashboardPage=' + (typeof window.DashboardPage) +
-                ' App-mount: check ReactDOM.createRoot in app.js');
+              addErr('[stuck] DashboardPage=' + (typeof window.DashboardPage));
             }
-          }, 250);
+          }, 400);
           return;
         }
         var s = scripts[i];
@@ -95,7 +106,7 @@
         el.src = s[1];
         if (s[1].indexOf('http') === 0) el.crossOrigin = 'anonymous';
         el.onload  = function () { set(s[0], 'ok'); loadOne(i + 1); };
-        el.onerror = function () { set(s[0], 'FAILED', s[1]); /* keep going so we see all failures */ loadOne(i + 1); };
+        el.onerror = function () { set(s[0], 'FAILED'); loadOne(i + 1); };
         document.body.appendChild(el);
       }
       loadOne(0);
