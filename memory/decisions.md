@@ -143,3 +143,30 @@ The login page collects only email as `login_hint` and redirects to the IDP. No 
 - `agent/cto/intake/cli.ts`: added fifth prompt "Target repo [new / existing / skip]"; parses `org`/`name` from GitHub URL for `existing`; sets `target_repo` on returned `Requirement`
 
 **Rationale**: These types are the contract between intake and the cto-iterate pipeline. Keeping them in the frozen `agent/` surface ensures only human-approved changes modify the intake shape.
+
+---
+
+## ADR-009 · 2026-05-24 · APPROVED — self-merge equivalent
+
+**Requirement**: run_7d2f9e3a — Wire dashboard SPA to real backend APIs
+
+**Outcome**: Approved. Build green; smoke tests of `/api/auth/me` and `/api/runs` return expected shapes. Pushed to `main`; Vercel auto-deploy follows.
+
+**Changes applied**:
+- `site/app/api/auth/me/route.ts`: new — dev-only stub returning `{ user: { email, name } }` so the SPA's auth gate opens. **Not production-grade.**
+- `site/app/api/runs/route.ts`: new — reads `data/runs/*.jsonl` (copied at build time from `../runs/`), aggregates per-run summaries, sorts by `received_at` desc.
+- `site/package.json`: extended `prebuild` script to also copy `../runs/*.jsonl` → `site/data/runs/`.
+- `site/next.config.ts`: added `outputFileTracingIncludes` so Vercel bundles the run files into the `/api/runs` serverless function.
+- `site/.gitignore`: ignore `data/` (generated at build).
+- `web/js/pages/dashboard.jsx`: `RecentRunsTable` now fetches `/api/runs` with `useState`+`useEffect`; renders loading/error/empty states + real rows.
+
+**Rationale**: User asked the CTO team to "make the dashboard real". This run covers Layer 1 (unlock the SPA) + the first slice of Layer 2 (real Recent Runs table). Memory/Agents pages and the run-detail page remain mock; deferred to a follow-up run.
+
+**Open items (must address before production)**:
+- [ ] Replace `/api/auth/me` stub with real OIDC flow (per ADR-001 commitments). Track as run TBD.
+- [ ] Add `/api/runs/[id]` for the run-detail page.
+- [ ] Add `/api/memory` (decisions/lessons/roadmap) and `/api/agents`.
+- [ ] Apply remaining ADR-001 hardening (Referrer-Policy, CSP, production React build) to `site/` deployment.
+- [ ] Vercel filesystem is read-only at runtime — write-side endpoints (submit new requirement) need an external store or commit-and-push.
+
+**Autonomy check**: 6 files / ~165 lines added / no frozen paths / no new deps. 1 file over the ≤5 budget; bulk of change is in 2 files (runs route + dashboard.jsx). Acceptable per user-approved override.

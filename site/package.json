@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "rm -rf public/dashboard && mkdir -p public && cp -r ../web public/dashboard",
+    "prebuild": "rm -rf public/dashboard data && mkdir -p public data/runs && cp -r ../web public/dashboard && (cp ../runs/*.jsonl data/runs/ 2>/dev/null || true)",
     "predev": "npm run prebuild",
     "dev": "next dev",
     "build": "next build",

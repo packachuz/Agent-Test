@@ -127,10 +127,26 @@ function ActiveRunCard({ state = "normal", onNav }) {
 }
 
 function RecentRunsTable({ onNav }) {
-  const rows = [
-    { id: "run_a1b2c3d4", title: "Add user login page (OIDC auth-code flow)", status: "done", dur: "10m 30s", outcome: "approved · self-merged", target: null, prUrl: null },
-    { id: "run_b3e7f291", title: "Add external repo provisioning support", status: "done", dur: "8m 12s", outcome: "approved · pr opened", target: "org/repo", prUrl: "https://github.com/org/repo/pull/1" },
-  ];
+  const [rows, setRows] = React.useState(null);
+  const [error, setError] = React.useState(null);
+
+  React.useEffect(() => {
+    fetch("/api/runs", { credentials: "same-origin" })
+      .then(res => res.ok ? res.json() : Promise.reject(new Error("HTTP " + res.status)))
+      .then(data => {
+        const mapped = (data.runs || []).map(r => ({
+          id: r.id,
+          title: r.title,
+          status: r.status || "done",
+          dur: r.files_changed != null ? (r.files_changed + " files") : "—",
+          outcome: r.outcome || "—",
+          target: null,
+          prUrl: null,
+        }));
+        setRows(mapped);
+      })
+      .catch(err => setError(String(err.message || err)));
+  }, []);
 
   // R7: validate PR URL starts with https://github.com/ before rendering as link
   function SafePrLink({ url }) {
@@ -172,7 +188,16 @@ function RecentRunsTable({ onNav }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map(r => (
+          {error && (
+            <tr><td colSpan={7} style={{color:'var(--status-escalated)', padding:14}}>Failed to load runs: {error}</td></tr>
+          )}
+          {!error && rows === null && (
+            <tr><td colSpan={7} style={{color:'var(--fg-muted)', padding:14}}>Loading runs…</td></tr>
+          )}
+          {!error && rows && rows.length === 0 && (
+            <tr><td colSpan={7} style={{color:'var(--fg-muted)', padding:14}}>No runs recorded yet.</td></tr>
+          )}
+          {!error && rows && rows.map(r => (
             <tr key={r.id} onClick={() => onNav?.('run-detail')} style={{cursor:'pointer'}}>
               <td className="id">{r.id}</td>
               <td>{r.title}</td>
