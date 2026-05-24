@@ -71,14 +71,74 @@
   <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
   <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
 
-  <!-- load order matters: shared → pages → app -->
-  <script type="text/babel" src="js/shared.jsx"></script>
-  <script type="text/babel" src="js/pages/dashboard.jsx"></script>
-  <script type="text/babel" src="js/pages/submit.jsx"></script>
-  <script type="text/babel" src="js/pages/run-detail.jsx"></script>
-  <script type="text/babel" src="js/pages/memory.jsx"></script>
-  <script type="text/babel" src="js/pages/agents.jsx"></script>
-  <script type="text/babel" src="js/pages/login.jsx"></script>
-  <script type="text/babel" src="js/app.jsx"></script>
+  <script>
+    // Controlled JSX loader: fetch each file, surface HTTP/Content-Type,
+    // transform with Babel, eval in catchable context. The default
+    // <script type="text/babel"> path masks errors as "Script error." in
+    // iOS Safari — this replaces it with the real message + stack.
+    (function () {
+      var files = [
+        "js/shared.jsx",
+        "js/pages/dashboard.jsx",
+        "js/pages/submit.jsx",
+        "js/pages/run-detail.jsx",
+        "js/pages/memory.jsx",
+        "js/pages/agents.jsx",
+        "js/pages/login.jsx",
+        "js/app.jsx",
+      ];
+      var errEl = document.getElementById('boot-err');
+      function log(msg, cls) {
+        if (!errEl) return;
+        var line = document.createElement('div');
+        line.textContent = msg;
+        if (cls) line.className = cls;
+        errEl.parentNode.insertBefore(line, errEl);
+      }
+      function waitForBabel() {
+        return new Promise(function (resolve, reject) {
+          var t0 = Date.now();
+          var iv = setInterval(function () {
+            if (typeof Babel !== 'undefined') { clearInterval(iv); resolve(); }
+            else if (Date.now() - t0 > 10000) { clearInterval(iv); reject(new Error('Babel did not load in 10s')); }
+          }, 50);
+        });
+      }
+      waitForBabel().then(function () {
+        var p = Promise.resolve();
+        files.forEach(function (file) {
+          p = p.then(function () {
+            return fetch(file, { cache: 'no-store' }).then(function (res) {
+              var ct = res.headers.get('content-type') || '(no content-type)';
+              log('[fetch ' + res.status + '] ' + file + '  (' + ct + ')', res.ok ? 'step ok' : 'step err');
+              if (!res.ok) throw new Error('HTTP ' + res.status + ' for ' + file);
+              return res.text();
+            }).then(function (src) {
+              var out;
+              try {
+                out = Babel.transform(src, { presets: ['react'], filename: file }).code;
+              } catch (e) {
+                log('[babel] ' + file + ': ' + (e.message || e), 'step err');
+                throw e;
+              }
+              try {
+                // Indirect eval to run in global scope so window.X assignments stick.
+                (0, eval)(out);
+              } catch (e) {
+                log('[eval] ' + file + ': ' + (e.message || e), 'step err');
+                if (e.stack) log(e.stack.split('\n').slice(0, 4).join('\n'), 'step err');
+                throw e;
+              }
+            });
+          });
+        });
+        return p;
+      }).then(function () {
+        log('[ok] all scripts loaded', 'step ok');
+      }).catch(function (e) {
+        log('[abort] ' + (e.message || e), 'step err');
+      });
+    })();
+  </script>
 </body>
 </html>
