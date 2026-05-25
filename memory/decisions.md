@@ -277,3 +277,47 @@ Build log confirmed all files were created and "Collected static files" in the d
 - [ ] Memory / Agents pages still mock (ADR-010 open items)
 
 **Autonomy check**: 4 files / no frozen paths / no new runtime deps. Build green; smoke test confirms `/dashboard/` returns 116KB HTML containing `function DashboardPage`. Self-merge eligible.
+
+---
+
+## ADR-014 · 2026-05-25 · APPROVED — frozen-surface change, human approved via grill-me
+
+**Requirement**: run_phase1_cloud — Make the CTO agent triggerable from the cloud (GitHub Actions), with cost caps and a feature-flag rollback
+
+**Outcome**: Approved. Crosses frozen `agent/` and `.github/` surfaces by design. Approval recorded through the grill-me session that resolved 15+ decision branches (runtime, triggers, branch policy, secrets, model routing, cost caps, concurrency, failure handling, RAG, auth, notifications, verification, rollback).
+
+**Decisions locked** (grill-me transcript summary):
+- **Runtime**: GitHub Actions (Q1)
+- **Triggers**: `workflow_dispatch` only — no cron, no issue-label, no PR-comment (Q2)
+- **Inputs**: title, description, priority, touches, target_repo_url, fixture — all via workflow_dispatch form
+- **Branch policy**: hybrid — agent always opens PR on `feat/cto-*`, autonomy gate decides self-merge vs. human review (Q4)
+- **Secrets**: GitHub Secrets repo-level — `GEMINI_API_KEY` required, `ANTHROPIC_API_KEY` optional, `NOTEBOOKLM_AUTH_JSON` optional (Q5)
+- **Model routing**: revised from Q5c.v2 ("Claude for Security") to Gemini-everywhere after the parallel session shipped 61d26be that migrated all 6 agents to `@google/genai`. Re-decided via Q-divergence-1.
+- **Cost caps**: $2/run, $20/day, $50/month — hard kill via `BudgetExceededError` (Q6)
+- **Concurrency**: serial via `concurrency: { group: cto-run, cancel-in-progress: false }` (Q7)
+- **Failures**: open `cto-failed` issue, leave branch in place, no cleanup (Q8)
+- **RAG**: existing NotebookLM via `NOTEBOOKLM_AUTH_JSON` secret; advisory until provided (Q9.v2)
+- **Dashboard auth**: stays public + stub `/api/auth/me` (Q10)
+- **PR notify**: workflow assigns triggering user as reviewer; GitHub mobile push (Q13)
+- **First run**: `--fixture=small-bugfix` to smoke-test the loop without spend (Q14)
+- **Rollback**: `CTO_CLOUD_ENABLED` repo variable; unset/non-`true` = no-op (Q15)
+
+**Changes applied this run** (on top of 61d26be):
+- `agent/cto/policy/cost-tracker.ts`: new — preflight + record spend, per-run/day/month caps, `BudgetExceededError` is fatal (not retried).
+- `agent/cto/intake/workflow.ts`: new — reads `INTAKE_*` env vars set by the workflow; same validation rules as `intake/cli.ts`.
+- `agent/cto/shared/gemini.ts`: wired cost tracker — `preflightBudget()` before each call, `recordSpend()` after using `usageMetadata.{promptTokenCount,candidatesTokenCount}`. Budget errors bypass the rate-limit retry loop.
+- `agent/cto/shared/types.ts`: `IntakeSource` adds `'workflow'`.
+- `agent/cto/index.ts`: registers `--intake=workflow`, gates the workflow path behind `CTO_CLOUD_ENABLED`, calls `setRunId()` on run start.
+- `.github/workflows/cto-run.yml`: new — workflow_dispatch with 6 inputs, serial concurrency group, `feat/cto-<timestamp>` branch + PR + reviewer assignment, `cto-failed` issue on crash, 30-min timeout.
+- `CLOUD_SETUP.md`: new — 4-step phone walkthrough (secrets, variable, NotebookLM optional, fixture smoke test, real run) + rollback ladder.
+
+**Open items deferred to later runs**:
+- **Phase 2: file-diff applier.** Sub-agents currently emit text plans, not file edits. The cloud PR contains the run log + ADRs + roadmap updates — no actual code changes. "Cloud agent actually ships code" needs (a) structured-diff schema in agent outputs and (b) an applier with typecheck retry.
+- **Memory / Agents page wiring** to `/api/memory` and `/api/agents` (carried over from ADR-010).
+- **Cron / scheduled retrospectives** (deferred to Phase 1.5; would auto-trigger `agent/cto/retrospect/overnight.ts` nightly).
+- **Real OIDC dashboard auth** (carried; Q10 stays at stub).
+- **`shared/gemini.ts` upgrade to `gemini-2.5-pro` for `MODELS.pro` once Google AI Studio billing is enabled** (note in source).
+
+**Autonomy check**: 7 files changed/created in this PR. Crosses frozen `agent/`, `.github/`. Adds the human-approved Phase 1 work explicitly approved via the grill-me session. Self-merge eligible **only because the approval is explicit and on record above**. Future agent runs touching frozen surfaces without a grill-me equivalent must escalate.
+
+**Rollback proof**: setting `CTO_CLOUD_ENABLED` to anything other than `true` (or unsetting it) causes the workflow's `jobs.run.if` to evaluate false → no job → no spend. Verified by `if: ${{ vars.CTO_CLOUD_ENABLED == 'true' }}` at the top of `jobs.run`.

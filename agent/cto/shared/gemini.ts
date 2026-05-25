@@ -1,4 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
+import { preflightBudget, recordSpend } from '../policy/cost-tracker.js';
 
 const apiKey = process.env.GEMINI_API_KEY;
 if (!apiKey) throw new Error('GEMINI_API_KEY environment variable is required');
@@ -24,6 +25,8 @@ export async function generate(opts: {
 
   for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
     try {
+      preflightBudget(); // throws BudgetExceededError if a cap is already tripped
+
       const response = await ai.models.generateContent({
         model: opts.model,
         contents: opts.prompt,
@@ -33,9 +36,17 @@ export async function generate(opts: {
           ...(opts.jsonMode ? { responseMimeType: 'application/json' } : {}),
         },
       });
+
+      const usage = response.usageMetadata;
+      if (usage) {
+        recordSpend(opts.model, usage.promptTokenCount ?? 0, usage.candidatesTokenCount ?? 0);
+      }
+
       return response.text ?? '';
     } catch (err: unknown) {
       lastError = err;
+      if (err instanceof Error && err.name === 'BudgetExceededError') throw err; // do not retry
+
       const isRateLimit = String(err).includes('429') || String(err).includes('RESOURCE_EXHAUSTED');
       if (!isRateLimit || attempt === RETRY_DELAYS_MS.length) throw err;
       const delay = RETRY_DELAYS_MS[attempt];

@@ -10,6 +10,12 @@ import { buildEscalationReport, printEscalationReport } from './policy/escalatio
 import { collectFromCLI } from './intake/cli.js';
 import { collectFromGitHub } from './intake/github.js';
 import { loadQueue } from './intake/queue.js';
+import { collectFromWorkflow } from './intake/workflow.js';
+import { setRunId } from './policy/cost-tracker.js';
+
+// Feature flag — locked at boot. Cloud workflow won't proceed unless this is
+// 'true'. Local CLI / fixture runs bypass the gate. See ADR-014 / grill-me Q15.
+const cloudEnabled = process.env.CTO_CLOUD_ENABLED === 'true';
 
 const args = process.argv.slice(2);
 const intakeMode = args.find(a => a.startsWith('--intake='))?.split('=')[1] ?? 'cli';
@@ -17,9 +23,15 @@ const dryRun     = args.includes('--dry-run');
 const fixture    = args.find(a => a.startsWith('--fixture='))?.split('=')[1];
 const queueFile  = args.find(a => a.startsWith('--queue-file='))?.split('=')[1];
 
+if (intakeMode === 'workflow' && !cloudEnabled) {
+  console.error('[cto] Workflow intake invoked but CTO_CLOUD_ENABLED is not "true". Aborting.');
+  process.exit(2);
+}
+
 async function getSingleRequirement(): Promise<Requirement> {
   if (fixture) return buildFixture(fixture);
-  if (intakeMode === 'github') return collectFromGitHub();
+  if (intakeMode === 'github')   return collectFromGitHub();
+  if (intakeMode === 'workflow') return collectFromWorkflow();
   return collectFromCLI();
 }
 
@@ -54,6 +66,7 @@ function buildFixture(name: string): Requirement {
 async function runRequirement(requirement: Requirement): Promise<void> {
   const run_id = `run_${randomUUID().slice(0, 8)}`;
   initLogger(run_id);
+  setRunId(run_id); // reset per-run spend counter
 
   await withRunId(run_id, async () => {
     log('system', 'bootstrap', { output: { run_id, dryRun, intakeMode } });

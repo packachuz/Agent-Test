@@ -1,5 +1,5 @@
 export type Priority = 'low' | 'medium' | 'high';
-export type IntakeSource = 'cli' | 'github_issue' | 'webhook';
+export type IntakeSource = 'cli' | 'github_issue' | 'webhook' | 'workflow';
 export type TaskStatus = 'pending' | 'running' | 'done' | 'blocked' | 'escalated';
 export type AgentKey = 'cto' | 'arc' | 'dev' | 'qa' | 'dvo' | 'sec';
 export type ChangeClass = 'copy_edit' | 'dead_code' | 'bugfix' | 'patch_bump' | 'perf_tweak' | 'feature' | 'infra' | 'migration' | 'security';
