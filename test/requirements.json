@@ -1,0 +1,61 @@
+[
+  {
+    "title": "Fix broken 'Load more' button in run history dashboard",
+    "description": "The Load More button in web/js/app.jsx resets the page counter to 0 on each click instead of incrementing it, so clicking it twice returns the same first page of results. Fix the state update so successive clicks append new pages.",
+    "priority": "low",
+    "touches": ["web/js/app.jsx"],
+    "constraints": {
+      "requireSecuritySignoff": false,
+      "requireQAPass": true,
+      "escalateOnLargeDiff": false
+    }
+  },
+
+  {
+    "title": "Add OpenTelemetry histogram to /search for p99 visibility",
+    "description": "We cannot hit the quarterly goal of p99 /search < 280ms without first measuring it. Instrument the /search handler in services/search with an OpenTelemetry histogram (search.request.duration_ms). Expose the metric via the existing OTel exporter so it lands in Grafana. No behaviour changes — observability only.",
+    "priority": "high",
+    "touches": ["services/search"],
+    "constraints": {
+      "requireSecuritySignoff": false,
+      "requireQAPass": true,
+      "escalateOnLargeDiff": false
+    }
+  },
+
+  {
+    "title": "Emit per-tenant append-only audit events for /search queries",
+    "description": "SOC2 CC6.1 and the Q3 per-tenant audit trail objective require every /search call to emit a tamper-evident audit event. Each event must include: tenant_id, user_id, SHA-256 of the query (never plaintext — GDPR), and timestamp. Events go to the existing audit log Kafka topic (append-only). No event may be deleted or mutated. Retention must meet the 400-day minimum.",
+    "priority": "high",
+    "touches": ["services/search", "services/audit"],
+    "constraints": {
+      "requireSecuritySignoff": true,
+      "requireQAPass": true,
+      "escalateOnLargeDiff": false
+    }
+  },
+
+  {
+    "title": "Enforce 2FA for all admin users in auth middleware",
+    "description": "Admin-role users should be blocked at the auth middleware layer if they have not enrolled in 2FA. Add an enforcement check in auth/middleware.go: after OIDC token validation, query the user profile for mfa_enrolled=true. Return 403 with a redirect to the 2FA setup flow if not enrolled.",
+    "priority": "high",
+    "touches": ["auth/middleware.go", "auth/"],
+    "constraints": {
+      "requireSecuritySignoff": true,
+      "requireQAPass": true,
+      "escalateOnLargeDiff": false
+    }
+  },
+
+  {
+    "title": "Show run duration and per-agent verdict badges on dashboard cards",
+    "description": "Each run card in web/js/app.jsx currently shows only the final outcome label. Enhance it to also display: (1) run duration derived from started_at and updated_at fields already in the run state, formatted as Xm Ys; (2) a row of small verdict badges — one per agent that ran — coloured green (✓ done) or red (✗ blocked). Data is already available in the runs/<run_id>.jsonl files loaded by the dashboard.",
+    "priority": "medium",
+    "touches": ["web/js/app.jsx", "web/js/shared.jsx"],
+    "constraints": {
+      "requireSecuritySignoff": false,
+      "requireQAPass": true,
+      "escalateOnLargeDiff": false
+    }
+  }
+]

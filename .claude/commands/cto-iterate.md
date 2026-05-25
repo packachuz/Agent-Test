@@ -38,7 +38,12 @@ Based on the triage memo, build a task plan:
   - Group 3 = [QA + DevOps — `pr-open` in parallel]  *(DevOps `pr-open` only when Target repo provided)*
 
 ### 4. Execute — spawn sub-agents in parallel per group
-For each group, use the Agent tool to spawn each sub-agent simultaneously.
+Multiple requirements may be processed in parallel. Each run is fully isolated:
+- Its own state file at `state/<run_id>.json`
+- Its own log at `runs/<run_id>.jsonl`
+- No shared mutable state between concurrent runs
+
+For each group within a run, use the Agent tool to spawn each sub-agent simultaneously.
 
 Before spawning each agent in a group, retrieve relevant past context via RAG:
   python3 scripts/rag_query.py --agent=<name> --query="<task goal> | <one-line triage summary>"
@@ -99,3 +104,35 @@ Print a concise summary:
 - Which agents ran and their verdicts
 - What was written to memory
 - Next steps (if escalated: what the human needs to review)
+
+---
+
+## Batch / parallel mode (TypeScript runtime)
+
+To run multiple requirements in parallel without interactive prompts, create a JSON queue file:
+
+```json
+[
+  {
+    "title": "Fix login redirect loop",
+    "description": "After OIDC callback, users are redirected back to /login instead of the dashboard.",
+    "priority": "high",
+    "touches": ["web/js/app.jsx"]
+  },
+  {
+    "title": "Add rate limiting to /api/search",
+    "description": "The /search endpoint has no rate limit. Add 60 req/min per user.",
+    "priority": "medium",
+    "touches": ["services/search"]
+  }
+]
+```
+
+Then run:
+```bash
+npm run queue -- --queue-file=requirements.json
+# or with dry-run to preview plans only:
+npm run queue -- --queue-file=requirements.json --dry-run
+```
+
+Each requirement gets its own `run_<id>`, isolated state file, and JSONL log. All pipelines run concurrently — no requirement blocks another.

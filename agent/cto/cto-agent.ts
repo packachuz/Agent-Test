@@ -1,11 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Requirement, Plan, CTODecision, RunState, Task, AgentKey } from './shared/types.js';
 import { log } from './shared/logger.js';
 import { writeState, updateStatus } from './shared/state.js';
-
-const client = new Anthropic();
+import { generate, MODELS } from './shared/gemini.js';
 
 function readMemory(): string {
   const files = ['roadmap.md', 'decisions.md', 'lessons.md', 'skills.md', 'domain.md'];
@@ -44,16 +42,12 @@ export async function triage(
   const memory = readMemory();
   const systemPrompt = readSystemPrompt();
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 1024,
-    system: [
-      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: `## Current memory\n\n${memory}`, cache_control: { type: 'ephemeral' } },
-    ],
-    messages: [{
-      role: 'user',
-      content: `Triage this requirement. Return JSON: {"approved": boolean, "memo": string, "reason": string}
+  const text = await generate({
+    model: MODELS.pro,
+    maxOutputTokens: 1024,
+    jsonMode: true,
+    systemInstruction: `${systemPrompt}\n\n## Current memory\n\n${memory}`,
+    prompt: `Triage this requirement. Return JSON: {"approved": boolean, "memo": string, "reason": string}
 
 Requirement:
 - Title: ${requirement.title}
@@ -62,10 +56,7 @@ Requirement:
 - Touches: ${requirement.touches.join(', ') || 'unspecified'}
 
 Check against memory/roadmap.md. Approve only if it aligns with priorities and does not violate constraints.`,
-    }],
   });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   const result = jsonMatch ? JSON.parse(jsonMatch[0]) : { approved: true, memo: text };
 
@@ -85,27 +76,13 @@ export async function decompose(
   const memory = readMemory();
   const systemPrompt = readSystemPrompt();
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 2048,
-    system: [
-      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: `## Current memory\n\n${memory}`, cache_control: { type: 'ephemeral' } },
-    ],
-    messages: [{
-      role: 'user',
-      content: `Decompose this requirement into a parallel task plan. Return JSON matching this shape:
-{
-  "problem": string,
-  "hypothesis": string,
-  "change_sketch": string,
-  "success_metric": string,
-  "rollback_plan": string,
-  "estimated_minutes": number,
-  "task_groups": [
-    [{ "agent": AgentKey, "goal": string, "context": string, "constraints": string[], "success_criteria": string[], "depends_on": string[] }]
-  ]
-}
+  const text = await generate({
+    model: MODELS.pro,
+    maxOutputTokens: 8192,
+    jsonMode: true,
+    systemInstruction: `${systemPrompt}\n\n## Current memory\n\n${memory}`,
+    prompt: `Decompose this requirement into a parallel task plan. Return compact JSON (no whitespace in strings):
+{"problem":string,"hypothesis":string,"change_sketch":string,"success_metric":string,"rollback_plan":string,"estimated_minutes":number,"task_groups":[[{"agent":string,"goal":string,"context":string,"constraints":string[],"success_criteria":string[],"depends_on":string[]}]]}
 
 Triage memo: ${triageMemo}
 Available agents: ${agents.join(', ')}
@@ -114,11 +91,8 @@ Requirement touches: ${requirement.touches.join(', ') || 'unspecified'}
 Rules:
 - Tasks within a group run in parallel. Groups run sequentially.
 - Only include agents from the available set.
-- Keep task goals concise and unambiguous.`,
-    }],
+- Keep all string values under 120 characters. Be concise.`,
   });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   const raw = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
 
@@ -168,16 +142,12 @@ export async function synthesize(
   const results = state.task_results;
   const blocked = results.filter(r => r.status === 'blocked');
 
-  const response = await client.messages.create({
-    model: 'claude-opus-4-7',
-    max_tokens: 1024,
-    system: [
-      { type: 'text', text: systemPrompt, cache_control: { type: 'ephemeral' } },
-      { type: 'text', text: `## Current memory\n\n${memory}`, cache_control: { type: 'ephemeral' } },
-    ],
-    messages: [{
-      role: 'user',
-      content: `All sub-agents have reported. Synthesize and decide. Return JSON:
+  const text = await generate({
+    model: MODELS.pro,
+    maxOutputTokens: 1024,
+    jsonMode: true,
+    systemInstruction: `${systemPrompt}\n\n## Current memory\n\n${memory}`,
+    prompt: `All sub-agents have reported. Synthesize and decide. Return JSON:
 {"outcome": "approved"|"escalated", "rationale": string, "diff_summary": string, "escalation_reason": string}
 
 Requirement: ${state.requirement.title}
@@ -185,10 +155,7 @@ Blocked tasks (${blocked.length}): ${JSON.stringify(blocked.map(r => ({ agent: r
 Done tasks (${results.length - blocked.length}): ${JSON.stringify(results.filter(r => r.status === 'done').map(r => ({ agent: r.agent, confidence: r.confidence })))}
 
 Approve if all required agents are done and confidence is high. Escalate if anything is blocked or confidence is low.`,
-    }],
   });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   const raw = jsonMatch ? JSON.parse(jsonMatch[0]) : { outcome: 'escalated', rationale: text };
 
@@ -213,12 +180,10 @@ export async function updateRoadmap(state: RunState): Promise<void> {
   log('cto', 'roadmap.update.start');
   const roadmap = fs.readFileSync(roadmapPath, 'utf-8');
 
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{
-      role: 'user',
-      content: `Update the CTO-maintained section of this roadmap based on this completed run.
+  const text = await generate({
+    model: MODELS.flash,
+    maxOutputTokens: 4096,
+    prompt: `Update the CTO-maintained section of this roadmap based on this completed run.
 
 Run: ${state.run_id}
 Requirement: ${state.requirement.title}
@@ -229,10 +194,7 @@ Current roadmap:
 ${roadmap}
 
 Return the full updated roadmap markdown. Only modify the "CTO-maintained" section. Never modify "Human-seeded" sections.`,
-    }],
   });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
   if (text.trim()) {
     fs.writeFileSync(roadmapPath, text.trim() + '\n');
     log('cto', 'roadmap.update.complete');

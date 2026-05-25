@@ -1,10 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Task, TaskResult } from '../shared/types.js';
 import { log } from '../shared/logger.js';
+import { generate, MODELS } from '../shared/gemini.js';
 
-const client = new Anthropic();
 const MAX_RETRIES = 3;
 
 function systemPrompt(): string {
@@ -26,16 +25,11 @@ export async function runArchitect(task: Task): Promise<TaskResult> {
     try {
       log('arc', 'plan.draft', { input: { goal: task.goal }, retry: retries > 0, retry_count: retries });
 
-      const response = await client.messages.create({
-        model: 'claude-opus-4-7',
-        max_tokens: 4096,
-        system: [
-          { type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `## Memory\n\n${memory()}`, cache_control: { type: 'ephemeral' } },
-        ],
-        messages: [{
-          role: 'user',
-          content: `Goal: ${task.goal}
+      const output = await generate({
+        model: MODELS.pro,
+        maxOutputTokens: 4096,
+        systemInstruction: `${systemPrompt()}\n\n## Memory\n\n${memory()}`,
+        prompt: `Goal: ${task.goal}
 Context: ${task.context}
 Constraints: ${task.constraints.join('; ')}
 Success criteria: ${task.success_criteria.join('; ')}
@@ -48,10 +42,7 @@ Produce a detailed implementation plan with:
 5. Files the Developer will need to touch
 
 ${retries > 0 ? `Previous attempt failed: ${lastError}\nTry a different approach.` : ''}`,
-        }],
       });
-
-      const output = response.content[0].type === 'text' ? response.content[0].text : '';
 
       const meetsAllCriteria = task.success_criteria.every(c =>
         output.toLowerCase().includes(c.toLowerCase().split(' ')[0])

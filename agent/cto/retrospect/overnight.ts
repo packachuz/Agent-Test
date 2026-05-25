@@ -1,8 +1,6 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
-
-const client = new Anthropic();
+import { generate, MODELS } from '../shared/gemini.js';
 
 function readRecentRuns(maxRuns = 20): string {
   const dir = path.resolve('runs');
@@ -40,12 +38,10 @@ async function updateMemoryFile(
   currentContent: string,
   runSummary: string
 ): Promise<void> {
-  const response = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{
-      role: 'user',
-      content: `${instruction}
+  const text = await generate({
+    model: MODELS.flash,
+    maxOutputTokens: 4096,
+    prompt: `${instruction}
 
 ## Recent run summary
 ${runSummary}
@@ -54,10 +50,7 @@ ${runSummary}
 ${currentContent || '(empty)'}
 
 Return the updated full file content. Keep it concise and actionable.`,
-    }],
   });
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : '';
   if (text.trim()) writeMemoryFile(filename, text.trim());
   console.log(`Updated memory/${filename}`);
 }

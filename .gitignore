@@ -5,3 +5,4 @@ workspace/
 rag/notebooks.json
 rag/synced_runs.json
 storage_state.json
+state/run_*.json

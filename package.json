@@ -6,16 +6,17 @@
   "scripts": {
     "iterate": "tsx agent/cto/index.ts",
     "cli": "tsx agent/cto/index.ts --intake=cli",
+    "queue": "tsx agent/cto/index.ts --intake=queue",
     "retro": "tsx agent/cto/retrospect/overnight.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.55.0",
+    "@google/genai": "^2.6.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/node": "^22.15.21",
     "tsx": "^4.19.4",
-    "typescript": "^5.8.3",
-    "@types/node": "^22.15.21"
+    "typescript": "^5.8.3"
   }
 }

@@ -1,10 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Task, TaskResult } from '../shared/types.js';
 import { log } from '../shared/logger.js';
+import { generate, MODELS } from '../shared/gemini.js';
 
-const client = new Anthropic();
 const MAX_RETRIES = 3;
 
 function systemPrompt(): string {
@@ -21,9 +20,11 @@ export async function runDeveloper(task: Task): Promise<TaskResult> {
     try {
       log('dev', 'implement.start', { input: { goal: task.goal }, retry: retries > 0, retry_count: retries });
 
-      const messages: Anthropic.MessageParam[] = [{
-        role: 'user',
-        content: `Goal: ${task.goal}
+      const output = await generate({
+        model: MODELS.flash,
+        maxOutputTokens: 8096,
+        systemInstruction: systemPrompt(),
+        prompt: `Goal: ${task.goal}
 Context: ${task.context}
 Constraints: ${task.constraints.join('; ')}
 Success criteria: ${task.success_criteria.join('; ')}
@@ -38,16 +39,7 @@ Produce:
 3. Brief rationale for each decision
 
 Only touch files within the task scope. If you need to touch something outside scope, report BLOCKED instead.`,
-      }];
-
-      const response = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 8096,
-        system: [{ type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } }],
-        messages,
       });
-
-      const output = response.content[0].type === 'text' ? response.content[0].text : '';
 
       if (output.toLowerCase().includes('blocked:') || output.toLowerCase().startsWith('blocked')) {
         const reason = output.slice(0, 300);

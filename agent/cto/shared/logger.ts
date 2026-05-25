@@ -1,15 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { LogEntry, AgentKey } from './types.js';
 
-let currentRunId = '';
-let logPath = '';
+const runStorage = new AsyncLocalStorage<string>();
 
-export function initLogger(runId: string): void {
-  currentRunId = runId;
-  const dir = path.resolve('runs');
-  fs.mkdirSync(dir, { recursive: true });
-  logPath = path.join(dir, `${runId}.jsonl`);
+export function initLogger(_runId: string): void {
+  fs.mkdirSync(path.resolve('runs'), { recursive: true });
+}
+
+export function withRunId<T>(runId: string, fn: () => Promise<T>): Promise<T> {
+  return runStorage.run(runId, fn);
 }
 
 export function log(
@@ -25,8 +26,9 @@ export function log(
     error?: string;
   } = {}
 ): void {
+  const runId = runStorage.getStore() ?? '';
   const entry: LogEntry = {
-    run_id: currentRunId,
+    run_id: runId,
     timestamp: new Date().toISOString(),
     agent,
     action,
@@ -36,12 +38,18 @@ export function log(
   };
 
   const line = JSON.stringify(entry);
-  if (logPath) fs.appendFileSync(logPath, line + '\n');
+  if (runId) {
+    const logPath = path.join(path.resolve('runs'), `${runId}.jsonl`);
+    fs.appendFileSync(logPath, line + '\n');
+  }
 
-  // Always echo to stdout for live visibility
   const ts = new Date().toISOString().slice(11, 23);
-  const prefix = `[${ts}] [${agent.toUpperCase().padEnd(6)}]`;
+  const runTag = runId ? ` [${runId.slice(4, 12)}]` : '';
+  const prefix = `[${ts}]${runTag} [${agent.toUpperCase().padEnd(6)}]`;
   console.log(`${prefix} ${action}${opts.error ? ` ERROR: ${opts.error}` : ''}`);
 }
 
-export function getLogPath(): string { return logPath; }
+export function getLogPath(): string {
+  const runId = runStorage.getStore() ?? '';
+  return path.join(path.resolve('runs'), `${runId}.jsonl`);
+}

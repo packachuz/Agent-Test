@@ -1,10 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Task, TaskResult } from '../shared/types.js';
 import { log } from '../shared/logger.js';
+import { generate, MODELS } from '../shared/gemini.js';
 
-const client = new Anthropic();
 const MAX_RETRIES = 2;
 
 function systemPrompt(): string {
@@ -24,16 +23,11 @@ export async function runSecurity(task: Task): Promise<TaskResult> {
     try {
       log('sec', 'review.start', { input: { goal: task.goal }, retry: retries > 0, retry_count: retries });
 
-      const response = await client.messages.create({
-        model: 'claude-opus-4-7',
-        max_tokens: 4096,
-        system: [
-          { type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `## Security policies and domain constraints\n\n${domain()}`, cache_control: { type: 'ephemeral' } },
-        ],
-        messages: [{
-          role: 'user',
-          content: `Goal: ${task.goal}
+      const output = await generate({
+        model: MODELS.pro,
+        maxOutputTokens: 4096,
+        systemInstruction: `${systemPrompt()}\n\n## Security policies and domain constraints\n\n${domain()}`,
+        prompt: `Goal: ${task.goal}
 Context: ${task.context}
 Constraints: ${task.constraints.join('; ')}
 
@@ -46,10 +40,7 @@ Perform a full security review:
 
 Return APPROVED or BLOCKED, followed by your full findings.
 If BLOCKED, list every issue — you have authority to stop this release.`,
-        }],
       });
-
-      const output = response.content[0].type === 'text' ? response.content[0].text : '';
       const approved = /^approved/i.test(output.trim());
       const p0 = /P0|critical|severity.?0/i.test(output);
 

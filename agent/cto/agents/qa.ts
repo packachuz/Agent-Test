@@ -1,10 +1,9 @@
-import Anthropic from '@anthropic-ai/sdk';
 import fs from 'node:fs';
 import path from 'node:path';
 import { Task, TaskResult } from '../shared/types.js';
 import { log } from '../shared/logger.js';
+import { generate, MODELS } from '../shared/gemini.js';
 
-const client = new Anthropic();
 const MAX_RETRIES = 2;
 
 function systemPrompt(): string {
@@ -24,16 +23,11 @@ export async function runQA(task: Task): Promise<TaskResult> {
     try {
       log('qa', 'verify.start', { input: { goal: task.goal }, retry: retries > 0, retry_count: retries });
 
-      const response = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
-        system: [
-          { type: 'text', text: systemPrompt(), cache_control: { type: 'ephemeral' } },
-          { type: 'text', text: `## Known flaky tests and lessons\n\n${lessons()}`, cache_control: { type: 'ephemeral' } },
-        ],
-        messages: [{
-          role: 'user',
-          content: `Goal: ${task.goal}
+      const output = await generate({
+        model: MODELS.flash,
+        maxOutputTokens: 4096,
+        systemInstruction: `${systemPrompt()}\n\n## Known flaky tests and lessons\n\n${lessons()}`,
+        prompt: `Goal: ${task.goal}
 Context: ${task.context}
 Success criteria: ${task.success_criteria.join('; ')}
 
@@ -46,10 +40,7 @@ Perform adversarial QA:
 
 Return your verdict as: PASS or FAIL, followed by your full report.
 If FAIL, list every issue clearly — this cannot be overridden without human sign-off.`,
-        }],
       });
-
-      const output = response.content[0].type === 'text' ? response.content[0].text : '';
       const pass = /^pass/i.test(output.trim());
 
       log('qa', pass ? 'verify.pass' : 'verify.fail', { output: output.slice(0, 200) });
