@@ -75,6 +75,13 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Ensure labels exist
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh label create cto-task   --color 1f883d --description "CTO agent run"   --force || true
+          gh label create cto-failed --color d1242f --description "CTO run failed"   --force || true
+
       - name: Install deps
         run: npm ci || npm install
 
@@ -125,9 +132,11 @@ jobs:
           Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
           See \`runs/*.jsonl\` for the full event timeline and \`memory/decisions.md\` for any new ADR." \
-            --label "cto-task" \
-            --assignee "${{ github.actor }}" \
-            --reviewer "${{ github.actor }}"
+            --label "cto-task"
+          # Assignee + reviewer are best-effort: GitHub rejects self-review in
+          # some configs, and a failure here must not fail the run.
+          gh pr edit "${{ steps.branch.outputs.name }}" --add-assignee "${{ github.actor }}" || true
+          gh pr edit "${{ steps.branch.outputs.name }}" --add-reviewer "${{ github.actor }}" || true
 
       - name: Open failure issue
         if: failure()
