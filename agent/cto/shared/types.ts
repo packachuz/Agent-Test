@@ -37,7 +37,6 @@ export interface Task {
   context: string;            // scoped context injected into sub-agent prompt
   constraints: string[];
   success_criteria: string[];
-  depends_on: string[];       // task ids that must be done first
   status: TaskStatus;
   assigned_at?: string;
   completed_at?: string;

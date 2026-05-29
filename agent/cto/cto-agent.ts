@@ -82,7 +82,7 @@ export async function decompose(
     jsonMode: true,
     systemInstruction: `${systemPrompt}\n\n## Current memory\n\n${memory}`,
     prompt: `Decompose this requirement into a parallel task plan. Return compact JSON (no whitespace in strings):
-{"problem":string,"hypothesis":string,"change_sketch":string,"success_metric":string,"rollback_plan":string,"estimated_minutes":number,"task_groups":[[{"agent":string,"goal":string,"context":string,"constraints":string[],"success_criteria":string[],"depends_on":string[]}]]}
+{"problem":string,"hypothesis":string,"change_sketch":string,"success_metric":string,"rollback_plan":string,"estimated_minutes":number,"task_groups":[[{"agent":string,"goal":string,"context":string,"constraints":string[],"success_criteria":string[]}]]}
 
 Triage memo: ${triageMemo}
 Available agents: ${agents.join(', ')}
