@@ -59,6 +59,7 @@ If BLOCKED, list every issue — you have authority to stop this release.`,
       };
 
     } catch (e) {
+      if (e instanceof Error && e.name === 'BudgetExceededError') throw e;
       retries++;
       log('sec', 'review.error', { error: String(e), retry: true, retry_count: retries });
     }

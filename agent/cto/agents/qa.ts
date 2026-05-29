@@ -60,6 +60,7 @@ If FAIL, list every issue clearly — this cannot be overridden without human si
       };
 
     } catch (e) {
+      if (e instanceof Error && e.name === 'BudgetExceededError') throw e;
       retries++;
       log('qa', 'verify.error', { error: String(e), retry: true, retry_count: retries });
     }

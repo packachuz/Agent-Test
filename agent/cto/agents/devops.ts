@@ -49,6 +49,7 @@ If QA has not passed on this commit, return BLOCKED immediately.`,
       };
 
     } catch (e) {
+      if (e instanceof Error && e.name === 'BudgetExceededError') throw e;
       retries++;
       log('dvo', 'deploy.error', { error: String(e), retry: true, retry_count: retries });
     }

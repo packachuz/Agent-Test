@@ -72,6 +72,8 @@ Only touch files within the task scope. If you need to touch something outside s
       };
 
     } catch (e) {
+      // Budget caps are a hard kill — never retry or swallow them.
+      if (e instanceof Error && e.name === 'BudgetExceededError') throw e;
       lastError = String(e);
       retries++;
       log('dev', 'implement.error', { error: lastError, retry: true, retry_count: retries });

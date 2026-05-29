@@ -32,6 +32,17 @@ function writeMemoryFile(name: string, content: string): void {
   fs.writeFileSync(path.resolve('memory', name), content.trim() + '\n');
 }
 
+// Remove a markdown code fence the model sometimes wraps the whole file in.
+function stripFences(text: string): string {
+  return text.trim().replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
+}
+
+// Every "[Human-seeded]" heading in the original must survive the update.
+function preservesHumanSeeded(original: string, updated: string): boolean {
+  const markers = original.match(/\[Human-seeded\][^\n]*/g) ?? [];
+  return markers.every(m => updated.includes(m));
+}
+
 async function updateMemoryFile(
   filename: string,
   instruction: string,
@@ -51,7 +62,16 @@ ${currentContent || '(empty)'}
 
 Return the updated full file content. Keep it concise and actionable.`,
   });
-  if (text.trim()) writeMemoryFile(filename, text.trim());
+  const cleaned = stripFences(text);
+  if (!cleaned) { console.log(`Skipped memory/${filename} (empty model output)`); return; }
+  // roadmap.md carries human-governed sections — never overwrite if the model
+  // dropped one. Other memory files have no human-seeded markers, so the
+  // guard is a no-op for them.
+  if (!preservesHumanSeeded(currentContent, cleaned)) {
+    console.error(`Skipped memory/${filename}: model output dropped a [Human-seeded] section`);
+    return;
+  }
+  writeMemoryFile(filename, cleaned);
   console.log(`Updated memory/${filename}`);
 }
 
@@ -59,7 +79,9 @@ async function main(): Promise<void> {
   console.log('=== Overnight retrospective starting ===');
   const runSummary = readRecentRuns();
 
-  await Promise.all([
+  // allSettled (not all): a single Gemini failure on one file must not abort
+  // the others or skip the roadmap reprioritisation below.
+  const settled = await Promise.allSettled([
     updateMemoryFile(
       'lessons.md',
       'Update the lessons file with new failure patterns from recent runs. Add entries for anything that failed 2+ times. Keep existing entries if still relevant.',
@@ -73,6 +95,9 @@ async function main(): Promise<void> {
       runSummary
     ),
   ]);
+  settled.forEach((s, i) => {
+    if (s.status === 'rejected') console.error(`  memory update ${i + 1} failed: ${String(s.reason)}`);
+  });
 
   // Roadmap reprioritisation (sequential — reads updated lessons first)
   await updateMemoryFile(

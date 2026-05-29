@@ -68,6 +68,7 @@ ${retries > 0 ? `Previous attempt failed: ${lastError}\nTry a different approach
       };
 
     } catch (e) {
+      if (e instanceof Error && e.name === 'BudgetExceededError') throw e;
       lastError = String(e);
       retries++;
       log('arc', 'plan.error', { error: lastError, retry: true, retry_count: retries });

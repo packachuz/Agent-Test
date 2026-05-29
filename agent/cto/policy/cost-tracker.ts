@@ -9,6 +9,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { AsyncLocalStorage } from 'node:async_hooks';
 
 const STATE_DIR = path.resolve('state');
 
@@ -31,16 +32,25 @@ export class BudgetExceededError extends Error {
   }
 }
 
-interface SpendCounter { run_id: string | null; usd: number }
+interface SpendCounter { run_id: string; usd: number }
 
-let runCounter: SpendCounter = { run_id: null, usd: 0 };
+// Per-run spend is scoped via AsyncLocalStorage so that parallel runs (queue
+// mode runs runRequirement() concurrently via Promise.allSettled) each get
+// their own isolated counter — a module global would let one run reset/clobber
+// another's accumulated spend and defeat the per-run cap.
+const runStorage = new AsyncLocalStorage<SpendCounter>();
 
-export function setRunId(runId: string): void {
-  runCounter = { run_id: runId, usd: 0 };
+// Run `fn` within a fresh per-run spend context. Replaces the old setRunId().
+export function withRunBudget<T>(runId: string, fn: () => Promise<T>): Promise<T> {
+  return runStorage.run({ run_id: runId, usd: 0 }, fn);
+}
+
+function currentCounter(): SpendCounter | undefined {
+  return runStorage.getStore();
 }
 
 export function getRunSpendUsd(): number {
-  return runCounter.usd;
+  return currentCounter()?.usd ?? 0;
 }
 
 function todayKey(): string  { return new Date().toISOString().slice(0, 10); } // YYYY-MM-DD
@@ -73,7 +83,8 @@ export function estimateUsd(model: string, inputTokens: number, outputTokens: nu
 // We can't know the actual cost yet, so we just check current counters. The
 // real protection is recordSpend() throwing after the call lands.
 export function preflightBudget(): void {
-  if (runCounter.usd >= CAP_PER_RUN_USD) {
+  const runCounter = currentCounter();
+  if (runCounter && runCounter.usd >= CAP_PER_RUN_USD) {
     throw new BudgetExceededError('run', runCounter.usd, CAP_PER_RUN_USD);
   }
   const day = readPersistent(`day-${todayKey()}`);
@@ -92,7 +103,8 @@ export function recordSpend(model: string, inputTokens: number, outputTokens: nu
   const usd = estimateUsd(model, inputTokens, outputTokens);
   if (usd === 0) return 0;
 
-  runCounter.usd += usd;
+  const runCounter = currentCounter();
+  if (runCounter) runCounter.usd += usd;
 
   const dayKey   = `day-${todayKey()}`;
   const monthKey_ = `month-${monthKey()}`;
@@ -101,9 +113,9 @@ export function recordSpend(model: string, inputTokens: number, outputTokens: nu
   writePersistent(dayKey,   day);
   writePersistent(monthKey_, month);
 
-  if (runCounter.usd > CAP_PER_RUN_USD) throw new BudgetExceededError('run',   runCounter.usd, CAP_PER_RUN_USD);
-  if (day            > CAP_PER_DAY_USD) throw new BudgetExceededError('day',   day,            CAP_PER_DAY_USD);
-  if (month          > CAP_PER_MONTH_USD) throw new BudgetExceededError('month', month,        CAP_PER_MONTH_USD);
+  if (runCounter && runCounter.usd > CAP_PER_RUN_USD) throw new BudgetExceededError('run',   runCounter.usd, CAP_PER_RUN_USD);
+  if (day                          > CAP_PER_DAY_USD) throw new BudgetExceededError('day',   day,            CAP_PER_DAY_USD);
+  if (month                        > CAP_PER_MONTH_USD) throw new BudgetExceededError('month', month,        CAP_PER_MONTH_USD);
 
   return usd;
 }

@@ -195,8 +195,28 @@ ${roadmap}
 
 Return the full updated roadmap markdown. Only modify the "CTO-maintained" section. Never modify "Human-seeded" sections.`,
   });
-  if (text.trim()) {
-    fs.writeFileSync(roadmapPath, text.trim() + '\n');
+  const cleaned = stripFences(text);
+  if (cleaned && preservesHumanSeeded(roadmap, cleaned)) {
+    fs.writeFileSync(roadmapPath, cleaned + '\n');
     log('cto', 'roadmap.update.complete');
+  } else {
+    log('cto', 'roadmap.update.skipped', {
+      reflection: 'Model output dropped a [Human-seeded] section or was empty — keeping original roadmap.',
+    });
   }
+}
+
+// Remove a leading/trailing markdown code fence the model sometimes wraps the
+// file in (```markdown ... ```), which would otherwise be written verbatim.
+function stripFences(text: string): string {
+  let t = text.trim();
+  t = t.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '');
+  return t.trim();
+}
+
+// Guard against the model silently deleting human-governed sections. Every
+// "[Human-seeded]" heading present in the original must survive in the update.
+function preservesHumanSeeded(original: string, updated: string): boolean {
+  const markers = original.match(/\[Human-seeded\][^\n]*/g) ?? [];
+  return markers.every(m => updated.includes(m));
 }

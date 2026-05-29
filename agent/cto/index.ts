@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { RunState, Requirement } from './shared/types.js';
 import { initLogger, log, withRunId } from './shared/logger.js';
 import { writeState, updateStatus } from './shared/state.js';
@@ -11,7 +12,7 @@ import { collectFromCLI } from './intake/cli.js';
 import { collectFromGitHub } from './intake/github.js';
 import { loadQueue } from './intake/queue.js';
 import { collectFromWorkflow } from './intake/workflow.js';
-import { setRunId } from './policy/cost-tracker.js';
+import { withRunBudget } from './policy/cost-tracker.js';
 
 // Feature flag — locked at boot. Cloud workflow won't proceed unless this is
 // 'true'. Local CLI / fixture runs bypass the gate. See ADR-014 / grill-me Q15.
@@ -63,12 +64,29 @@ function buildFixture(name: string): Requirement {
   } as Requirement;
 }
 
+// Real diff stats from the working tree (staged + unstaged) so the autonomy
+// gate reflects what the run actually changed. On any failure (not a git repo,
+// git missing) returns large values so the gate errs toward escalation.
+function getGitDiffStats(): { filesChanged: number; linesAdded: number; paths: string[] } {
+  try {
+    const out = execSync('git diff --numstat HEAD', { encoding: 'utf-8' }).trim();
+    if (!out) return { filesChanged: 0, linesAdded: 0, paths: [] };
+    const rows = out.split('\n').map(l => l.split('\t'));
+    const paths = rows.map(r => r[2]).filter(Boolean);
+    const linesAdded = rows.reduce((n, r) => n + (Number(r[0]) || 0), 0);
+    return { filesChanged: paths.length, linesAdded, paths };
+  } catch {
+    return { filesChanged: 999, linesAdded: 999999, paths: [] };
+  }
+}
+
 async function runRequirement(requirement: Requirement): Promise<void> {
   const run_id = `run_${randomUUID().slice(0, 8)}`;
   initLogger(run_id);
-  setRunId(run_id); // reset per-run spend counter
 
-  await withRunId(run_id, async () => {
+  // Nest the per-run budget context inside the per-run log context so both are
+  // isolated even when queue mode runs requirements concurrently.
+  await withRunId(run_id, async () => withRunBudget(run_id, async () => {
     log('system', 'bootstrap', { output: { run_id, dryRun, intakeMode } });
     log('cto', 'requirement.received', { input: { id: requirement.id, title: requirement.title } });
 
@@ -119,15 +137,19 @@ async function runRequirement(requirement: Requirement): Promise<void> {
     updateStatus(run_id, 'reviewing');
     const decision = await synthesize(state);
 
-    // Autonomy gate
+    // Autonomy gate — fed from the REAL working-tree diff, not fabricated
+    // stats. In Phase 1 the sub-agents emit design docs rather than applying
+    // code, so changeClass cannot be inferred and defaults to 'feature'
+    // (not in the safe-list) → the gate escalates for human review by default.
+    const git = getGitDiffStats();
     const diffStats = {
-      filesChanged: 3,          // In production: parse from git diff --stat
-      linesAdded: 80,
-      touchesPaths: requirement.touches,
-      newDependencies: false,
+      filesChanged: git.filesChanged,
+      linesAdded: git.linesAdded,
+      touchesPaths: [...new Set([...requirement.touches, ...git.paths])],
+      newDependencies: git.paths.some(p => p.endsWith('package.json')),
       majorDepBump: false,
-      changeClass: 'bugfix' as const,
-      ciGreen: decision.outcome === 'approved',
+      changeClass: 'feature' as const,
+      ciGreen: false,            // no CI has actually run in-pipeline
       testsAddedOrUpdated: results.some(r => r.agent === 'qa' && r.status === 'done'),
     };
     const verdict = evaluateAutonomy(diffStats);
@@ -146,7 +168,7 @@ async function runRequirement(requirement: Requirement): Promise<void> {
     updateStatus(run_id, 'done');
     log('system', 'run.complete', { output: { run_id, outcome: decision.outcome } });
     console.log(`\n[${run_id}] Complete. Log: runs/${run_id}.jsonl\n`);
-  });
+  }));
 }
 
 async function main(): Promise<void> {
