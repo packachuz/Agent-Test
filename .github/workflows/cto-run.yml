@@ -103,7 +103,7 @@ jobs:
           FIXTURE: ${{ inputs.fixture }}
         run: |
           # Validate fixture against an allowlist; reject anything else so the
-          # value (env, never inline ${{ }}) can't smuggle shell or odd args.
+          # value (passed via env, never inlined) cannot smuggle shell or args.
           if [ -n "$FIXTURE" ]; then
             case "$FIXTURE" in
               small-bugfix|high-severity-bug)
@@ -127,7 +127,7 @@ jobs:
             echo "No file changes from pipeline."
             exit 0
           fi
-          # TITLE comes from env (not inline ${{ }}) so a malicious title cannot
+          # TITLE comes from env (not inlined) so a malicious title cannot
           # inject shell. printf %.60s truncates safely without a subshell.
           MSG="$(printf 'cto: %.60s' "$TITLE")"
           git commit -m "$MSG"
