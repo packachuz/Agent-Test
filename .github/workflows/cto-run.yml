@@ -28,9 +28,11 @@ on:
         required: false
         type: string
       fixture:
-        description: 'Fixture name (small-bugfix, high-severity-bug) — overrides inputs'
+        description: 'Smoke-test fixture (overrides title/description). Pick none for a real run.'
         required: false
-        type: string
+        type: choice
+        default: none
+        options: [none, small-bugfix, high-severity-bug]
 
 # Per grill-me Q7: serial execution. If a run is in flight, the next one waits.
 concurrency:
@@ -104,16 +106,15 @@ jobs:
         run: |
           # Validate fixture against an allowlist; reject anything else so the
           # value (passed via env, never inlined) cannot smuggle shell or args.
-          if [ -n "$FIXTURE" ]; then
-            case "$FIXTURE" in
-              small-bugfix|high-severity-bug)
-                npx tsx agent/cto/index.ts --fixture="$FIXTURE" ;;
-              *)
-                echo "Unknown fixture: $FIXTURE" >&2; exit 1 ;;
-            esac
-          else
-            npx tsx agent/cto/index.ts --intake=workflow
-          fi
+          # 'none' or empty means a real run from the workflow inputs.
+          case "$FIXTURE" in
+            none|"")
+              npx tsx agent/cto/index.ts --intake=workflow ;;
+            small-bugfix|high-severity-bug)
+              npx tsx agent/cto/index.ts --fixture="$FIXTURE" ;;
+            *)
+              echo "Unknown fixture: $FIXTURE" >&2; exit 1 ;;
+          esac
 
       - name: Commit pipeline outputs
         id: commit
